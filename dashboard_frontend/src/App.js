@@ -151,10 +151,10 @@ function App() {
   const sidebarItems = [
     { key: 'dashboard', icon: '🏠', label: 'Dashboard' },
     { key: 'users', icon: '👥', label: 'Users' },
-    { key: 'mail', icon: '📧', label: 'Mail' },
+    { key: 'mail', icon: '✉️', label: 'Mail' },
     { key: 'messages', icon: '💬', label: 'Messages' },
-    { key: 'analytics', icon: '📊', label: 'Analytics' },
-    { key: 'sales', icon: '🛒', label: 'Sales' },
+    { key: 'analytics', icon: '📈', label: 'Analytics' },
+    { key: 'sales', icon: '🛍️', label: 'Sales' },
     { key: 'posts', icon: '📰', label: 'Posts' },
     { key: 'tasks', icon: '✅', label: 'Tasks' },
     { key: 'reports', icon: '📄', label: 'Reports' },
@@ -183,7 +183,7 @@ function App() {
         />
 
         {/* Topbar */}
-        <Topbar brand="Admin page" onToggleSidebar={() => setCollapsed((v) => !v)} />
+        <Topbar brand="Dashboard" onToggleSidebar={() => setCollapsed((v) => !v)} />
 
         {/* Content */}
         <main className="content" role="main">

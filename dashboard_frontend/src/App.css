@@ -26,6 +26,9 @@
 .theme-toggle:hover {
   filter: brightness(0.98);
 }
+.theme-toggle:focus-visible {
+  box-shadow: 0 0 0 2px var(--primary-100), 0 0 0 4px var(--primary-50);
+}
 
 [data-theme="dark"] .App {
   /* Optional dark switch; tokens currently define a light theme. */

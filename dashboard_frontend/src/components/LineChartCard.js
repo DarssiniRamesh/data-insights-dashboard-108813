@@ -44,7 +44,9 @@ export default function LineChartCard({ title = "Visitor statistics", categories
           display: "grid",
           placeItems: "center",
           color: "var(--text-muted)",
-          fontSize: 12
+          fontSize: 12,
+          background:
+            "repeating-linear-gradient(0deg, transparent, transparent 23px, var(--surface-border) 24px), repeating-linear-gradient(90deg, transparent, transparent 59px, var(--surface-border) 60px)"
         }}
       >
         <div>

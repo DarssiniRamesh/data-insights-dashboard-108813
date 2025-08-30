@@ -51,12 +51,17 @@
   --space-6: 24px;
 
   /* Typography scale */
+  --fz-11: 11px;
   --fz-12: 12px;
+  --fz-13: 13px;
   --fz-14: 14px;
   --fz-16: 16px;
   --fz-20: 20px;
   --fz-22: 22px;
   --fz-24: 24px;
+
+  /* Focus */
+  --focus-ring: 0 0 0 2px var(--primary-100), 0 0 0 4px var(--primary-50);
 }
 
 /* Page shell utilities (from design notes) */
@@ -72,11 +77,24 @@
   color: var(--text);
 }
 
+/* Provide consistent focus styles */
+button, [role="button"], .nav-item, .btn, .icon-btn {
+  outline: none;
+}
+button:focus-visible,
+[role="button"]:focus-visible,
+.nav-item:focus-visible,
+.btn:focus-visible,
+.icon-btn:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+/* Sidebar */
 .sidebar {
   grid-area: sidebar;
   background: var(--surface);
   border-right: 1px solid var(--surface-border);
-  padding: 16px 12px;
+  padding: 16px 12px 20px 12px;
 }
 
 .topbar {
@@ -97,15 +115,18 @@
   gap: 16px;
 }
 
+/* KPI grid and gutters tuned to design */
 .kpis {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 16px;
 }
 
+/* Two-column rows */
 .row {
   display: grid;
   grid-template-columns: 2fr 1fr;
+  align-items: start;
   gap: 16px;
 }
 
@@ -156,6 +177,7 @@
   background: var(--primary);
   color: #fff;
 }
+.btn:hover { filter: brightness(0.98); }
 .btn-ghost {
   background: var(--primary-50);
   color: var(--primary-600);
@@ -164,7 +186,7 @@
 .btn-secondary {
   background: transparent;
   color: var(--text);
-  border-color: var(--surface-border);
+  border: 1px solid var(--surface-border);
 }
 .btn-danger {
   background: var(--danger);
@@ -203,6 +225,7 @@
   border-radius: 8px;
   color: var(--text);
   text-decoration: none;
+  border: 1px solid transparent;
 }
 .nav-item:hover {
   background: var(--surface-hover);
@@ -210,6 +233,7 @@
 .nav-item.active {
   background: var(--primary-50);
   color: var(--primary-600);
+  border-color: var(--primary-100);
 }
 
 /* KPI tile */
@@ -222,6 +246,7 @@
   flex-direction: column;
   justify-content: space-between;
   min-height: 120px;
+  border: 1px solid var(--surface-border);
 }
 .kpi-top {
   display: flex;
@@ -235,6 +260,9 @@
   display: grid;
   place-items: center;
   font-size: 18px;
+  background: var(--tile-blue);
+  color: var(--primary);
+  box-shadow: inset 0 0 0 6px var(--tile-blue);
 }
 .kpi-label {
   font-size: var(--fz-12);
@@ -251,6 +279,7 @@
 /* Chart placeholder area for LineChartCard */
 .line-chart .card-body > div {
   background: #fff;
+  border-radius: 8px;
 }
 
 /* Tasks donut layout */
@@ -302,8 +331,11 @@
   .row { grid-template-columns: 1fr; }
 }
 @media (max-width: 991px) {
+  .app-shell { grid-template-columns: 72px 1fr; }
   .kpis { grid-template-columns: repeat(2, 1fr); }
+  .content { padding: 16px; }
 }
 @media (max-width: 767px) {
   .kpis { grid-template-columns: 1fr; }
+  .content { padding: 12px; }
 }

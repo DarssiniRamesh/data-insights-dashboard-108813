@@ -35,7 +35,7 @@ export default function KpiTile({
         </div>
         {badge ? <div className="kpi-badge">{badge}</div> : <span aria-hidden="true" />}
       </div>
-      <div className="kpi-label">{label}</div>
+      <div className="kpi-label" title={label}>{label}</div>
       <div className="kpi-value" role="text" aria-live="polite">
         {value}
       </div>

@@ -9,7 +9,7 @@ import "../styles/tokens.css";
  * - onToggleSidebar?: () => void
  * - actionsRight?: ReactNode (e.g., create button, bell, profile)
  */
-export default function Topbar({ brand = "Admin page", onToggleSidebar, actionsRight }) {
+export default function Topbar({ brand = "Dashboard", onToggleSidebar, actionsRight }) {
   return (
     <header className="topbar" role="banner">
       <div className="topbar-left" style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -27,7 +27,7 @@ export default function Topbar({ brand = "Admin page", onToggleSidebar, actionsR
       <div className="topbar-right" style={{ display: "inline-flex", alignItems: "center", gap: 12 }}>
         {actionsRight || (
           <>
-            <button className="btn btn-ghost" type="button">Create new</button>
+            <button className="btn btn-ghost" type="button" aria-label="Create new item">Create new</button>
             <button className="icon-btn" type="button" aria-label="Notifications" title="Notifications">🔔</button>
             <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
               <span

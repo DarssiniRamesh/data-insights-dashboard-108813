@@ -54,6 +54,7 @@ export default function ActivityFeed({ title = "Activity", items = [], onApprove
                 <button
                   type="button"
                   className="btn"
+                  style={{ height: 32, padding: "0 12px" }}
                   onClick={() => onApprove && onApprove(it.id)}
                   aria-label={`Approve activity ${it.id}`}
                 >
@@ -62,7 +63,7 @@ export default function ActivityFeed({ title = "Activity", items = [], onApprove
                 <button
                   type="button"
                   className="btn btn-secondary"
-                  style={{ color: "var(--danger)", borderColor: "var(--danger)" }}
+                  style={{ height: 32, padding: "0 12px", color: "var(--danger)", borderColor: "var(--danger)" }}
                   onClick={() => onReject && onReject(it.id)}
                   aria-label={`Reject activity ${it.id}`}
                 >

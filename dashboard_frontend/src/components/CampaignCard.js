@@ -22,7 +22,11 @@ export default function CampaignCard({
       <div style={{ color: "white" }}>
         <p style={{ margin: 0, opacity: 0.9 }}>{description}</p>
         <div style={{ marginTop: 12 }}>
-          <button className="btn btn-ghost" onClick={() => onCtaClick && onCtaClick()}>
+          <button
+            className="btn btn-ghost"
+            style={{ height: 34, padding: "0 12px", background: "rgba(255,255,255,0.15)", color: "#fff", borderColor: "rgba(255,255,255,0.25)" }}
+            onClick={() => onCtaClick && onCtaClick()}
+          >
             {ctaText}
           </button>
         </div>
