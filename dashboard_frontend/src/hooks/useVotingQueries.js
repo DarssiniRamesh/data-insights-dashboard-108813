@@ -7,6 +7,10 @@
  * Defensive coding:
  * - All joins are optional-safe and tolerate RLS-denied nested fields by falling back to placeholder text.
  * - Empty states return consistent shapes to avoid UI errors.
+ *
+ * IMPORTANT: All widgets are based on RECENT activity (last N rows or last 7 days),
+ * and DO NOT rely on any "current/active contest week" filters for their data.
+ * The active week card remains as optional context only.
  */
 
 import { useCallback } from "react";
@@ -204,7 +208,8 @@ export function useVotingQueries() {
   }, [getActiveWeek]);
 
   // PUBLIC_INTERFACE
-  // getVotesOverTime: daily counts for recent period (default last 14 days), not scoped to contest week.
+  // getVotesOverTime: daily counts for a recent period window (default last 14 days), strictly based on created_at time range,
+  // without any contest-week constraint. This reflects recent activity across the system.
   const getVotesOverTime = useCallback(async (days = 14) => {
     const since = daysRangeISO(days);
     const nowIso = new Date().toISOString();
@@ -238,7 +243,7 @@ export function useVotingQueries() {
   }, []);
 
   // PUBLIC_INTERFACE
-  // getLeaderboard: top apps for recent period (default 7d) with vote share.
+  // getLeaderboard: top apps for recent period (default 7d) with vote share, not filtered by contest weeks.
   const getLeaderboard = useCallback(async (limit = 10, days = 7) => {
     const since = recentDaysISO(days);
 
@@ -283,7 +288,7 @@ export function useVotingQueries() {
   }, []);
 
   // PUBLIC_INTERFACE
-  // getRecentVotes: latest N recent votes (not scoped by week); tolerates missing join data.
+  // getRecentVotes: latest N recent votes strictly by created_at order (no week filters); tolerates missing join data.
   const getRecentVotes = useCallback(async (limit = 20) => {
     const { data, error } = await supabase
       .from("votes")
@@ -306,7 +311,7 @@ export function useVotingQueries() {
   }, []);
 
   // PUBLIC_INTERFACE
-  // getWinnersHistory: returns normalized winners list, safe when owner join is blocked.
+  // getWinnersHistory: returns recent winners (latest first) independent of any current week selection; safe when owner join is blocked.
   const getWinnersHistory = useCallback(async (limit = 8) => {
     const { data, error } = await supabase
       .from("contest_winners")

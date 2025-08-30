@@ -317,7 +317,7 @@ export default function VotingDashboard() {
             <ActiveWeekCard context={activeWeekCtx || {}} />
             <div style={{ height: 16 }} aria-hidden="true" />
             <LineChartCard
-              title="Votes per day (Recent)"
+              title="Votes per day (Last 14 days)"
               categories={votesOverTime?.categories || []}
               series={votesOverTime?.series || [{ name: "Votes", data: [] }]}
               legends={[{ label: "Votes", colorVar: "var(--chart-new)" }]}
@@ -338,7 +338,7 @@ export default function VotingDashboard() {
                 { key: "created_at", label: "Created" },
               ]}
               emptyMessage="No apps found."
-              limitInfo="Showing latest 8"
+              limitInfo="Latest 8 by created_at"
             />
           </div>
         </section>
