@@ -163,12 +163,16 @@ export default function VotingDashboard() {
       // Import supabase inline to keep cohesion in this page.
       const { supabase } = await import("../lib/supabaseClient");
       const countPromise = supabase.from("apps").select("id", { count: "exact", head: true });
-      const rowsPromise = supabase.from("apps").select("id,name,title,created_at").order("created_at", { ascending: false }).limit(8);
+      const rowsPromise = supabase
+        .from("apps")
+        .select("id,name,created_at")
+        .order("created_at", { ascending: false })
+        .limit(8);
       const [countRes, rowsRes] = await Promise.all([countPromise, rowsPromise]);
       const count = countRes?.count ?? 0;
       const rows = (rowsRes?.data || []).map((r) => ({
         id: r?.id,
-        name: r?.name ?? r?.title ?? `App ${r?.id ?? ""}`,
+        name: r?.name ?? `App ${r?.id ?? ""}`,
         created_at: r?.created_at ? new Date(r.created_at).toLocaleString() : "-",
       }));
       setAppsSummary({ count, rows });

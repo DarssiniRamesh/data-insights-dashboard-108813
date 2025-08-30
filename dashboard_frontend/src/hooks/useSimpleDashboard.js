@@ -66,15 +66,17 @@ export function useSimpleDashboard() {
 
   // Apps: id, name/title, owner_id (not joining), created_at
   const getAppsSummary = useCallback(async (limit = 10) => {
+    // Select only known-safe columns to avoid 400 errors from invalid fields.
     const { count, rows } = await fetchRecentWithCount({
       table: "apps",
-      selectFields: "id,name,title,owner_id,created_at",
+      selectFields: "id,name,owner_id,created_at",
       orderFieldCandidates: ["created_at", "id"],
       limit,
     });
     const mapped = (rows || []).map((r) => ({
       id: r?.id,
-      name: r?.name ?? r?.title ?? `App ${r?.id ?? ""}`,
+      // Prefer 'name' and fallback to a generic label if absent.
+      name: r?.name ?? `App ${r?.id ?? ""}`,
       owner_id: r?.owner_id ?? "-",
       created_at: r?.created_at ? new Date(r.created_at).toLocaleString() : "-",
     }));
