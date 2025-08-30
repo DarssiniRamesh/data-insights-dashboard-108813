@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './App.css';
 import './styles/tokens.css';
 
@@ -11,10 +11,24 @@ import DoughnutCard from './components/DoughnutCard';
 import ActivityFeed from './components/ActivityFeed';
 import CampaignCard from './components/CampaignCard';
 
+// Hooks (read-only)
+import { useQueries } from './hooks/useQueries';
+import { useRealtimeDashboard } from './hooks/useRealtimeDashboard';
+
 // PUBLIC_INTERFACE
 function App() {
   const [theme, setTheme] = useState('light');
   const [collapsed, setCollapsed] = useState(false);
+
+  // Read-only dashboard state (snapshots updated via SELECT on signals)
+  const [kpis, setKpis] = useState([]);
+  const [visitorStats, setVisitorStats] = useState({ categories: [], series: [] });
+  const [tasksDistribution, setTasksDistribution] = useState({ percent_done: 0, segments: [] });
+  const [activities, setActivities] = useState([]);
+  const [campaign, setCampaign] = useState(null);
+
+  // Fetchers
+  const { getKpis, getVisitorStats, getTasksDistribution, getRecentActivities, getActiveCampaign } = useQueries();
 
   // Effect to apply theme to document element
   useEffect(() => {
@@ -25,6 +39,87 @@ function App() {
   const toggleTheme = () => {
     setTheme(prevTheme => prevTheme === 'light' ? 'dark' : 'light');
   };
+
+  // Initial SELECTs
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function bootstrap() {
+      try {
+        const [kpiTiles, stats, tasks, feed, camp] = await Promise.all([
+          getKpis(),
+          getVisitorStats(12),
+          getTasksDistribution(),
+          getRecentActivities(10),
+          getActiveCampaign(),
+        ]);
+
+        if (isCancelled) return;
+        setKpis(Array.isArray(kpiTiles) ? kpiTiles.map(t => ({ ...t })) : []);
+        setVisitorStats(stats && typeof stats === 'object'
+          ? { categories: [...(stats.categories || [])], series: [...(stats.series || [])] }
+          : { categories: [], series: [] });
+        setTasksDistribution(tasks && typeof tasks === 'object'
+          ? { percent_done: tasks.percent_done || 0, segments: [...(tasks.segments || [])] }
+          : { percent_done: 0, segments: [] });
+        setActivities(Array.isArray(feed) ? feed.map(i => ({ ...i })) : []);
+        setCampaign(camp ? { ...camp } : null);
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('[App] Bootstrap SELECTs failed:', err);
+      }
+    }
+
+    bootstrap();
+    return () => { isCancelled = true; };
+  }, [getKpis, getVisitorStats, getTasksDistribution, getRecentActivities, getActiveCampaign]);
+
+  // Realtime subscriptions -> trigger read-only refreshes or prepend new items
+  const refreshKpis = useCallback(async () => {
+    const tiles = await getKpis();
+    setKpis(Array.isArray(tiles) ? tiles.map(t => ({ ...t })) : []);
+  }, [getKpis]);
+
+  const refreshVisitorStats = useCallback(async () => {
+    const stats = await getVisitorStats(12);
+    setVisitorStats(stats && typeof stats === 'object'
+      ? { categories: [...(stats.categories || [])], series: [...(stats.series || [])] }
+      : { categories: [], series: [] });
+  }, [getVisitorStats]);
+
+  const refreshTasks = useCallback(async () => {
+    const tasks = await getTasksDistribution();
+    setTasksDistribution(tasks && typeof tasks === 'object'
+      ? { percent_done: tasks.percent_done || 0, segments: [...(tasks.segments || [])] }
+      : { percent_done: 0, segments: [] });
+  }, [getTasksDistribution]);
+
+  const prependActivity = useCallback(async () => {
+    // Re-fetch recent activities to keep ordering and joins consistent (read-only)
+    const feed = await getRecentActivities(10);
+    setActivities(Array.isArray(feed) ? feed.map(i => ({ ...i })) : []);
+  }, [getRecentActivities]);
+
+  // Projects update may impact the KPI "Projects In Progress"
+  const handleProjectUpdate = useCallback(async () => {
+    await refreshKpis();
+  }, [refreshKpis]);
+
+  // Optional: campaign might change due to external status updates; refresh on any KPI-related signal
+  const refreshCampaign = useCallback(async () => {
+    const camp = await getActiveCampaign();
+    setCampaign(camp ? { ...camp } : null);
+  }, [getActiveCampaign]);
+
+  useRealtimeDashboard({
+    onSalesInsert: () => { refreshKpis(); refreshCampaign(); },
+    onCustomersInsert: () => { refreshKpis(); },
+    onApplicationsInsert: () => { refreshKpis(); },
+    onProjectsUpdate: () => { handleProjectUpdate(); },
+    onVisitsInsert: () => { refreshVisitorStats(); },
+    onTasksChange: () => { refreshTasks(); },
+    onActivitiesInsert: () => { prependActivity(); },
+  });
 
   const sidebarItems = [
     { key: 'dashboard', icon: '🏠', label: 'Dashboard' },
@@ -39,38 +134,6 @@ function App() {
     { key: 'settings', icon: '⚙️', label: 'Settings' },
     { key: 'support', icon: '🆘', label: 'Support' },
     { key: 'logout', icon: '🚪', label: 'Logout' },
-  ];
-
-  // Placeholder data to be replaced by hooks/useQueries
-  const kpis = [
-    { icon: '🛍️', label: 'Sales', value: 129, accentVar: 'var(--accent-pink)', tintVar: 'var(--tile-pink)' },
-    { icon: '👥', label: 'New Customers', value: 23, accentVar: 'var(--accent-orange)', tintVar: 'var(--tile-peach)' },
-    { icon: '☁️', label: 'Projects in Progress', value: 89, accentVar: 'var(--primary)', tintVar: 'var(--tile-blue)' },
-    { icon: '📥', label: 'New Applications', value: 121, accentVar: 'var(--accent-green)', tintVar: 'var(--tile-mint)' },
-  ];
-
-  const visitorStats = {
-    categories: [],
-    series: [],
-  };
-
-  const tasksDistribution = {
-    percent_done: 60,
-    segments: [
-      { key: 'done', value: 60, colorVar: 'var(--success)', label: 'Done' },
-      { key: 'in_progress', value: 25, colorVar: 'var(--warning)', label: 'In progress' },
-      { key: 'todo', value: 15, colorVar: 'var(--danger)', label: 'Todo' },
-    ],
-  };
-
-  const activities = [
-    {
-      id: 1,
-      message: 'Pushed changes to repository dashboard-ui',
-      status: 'pending',
-      created_at: new Date().toISOString(),
-      author: { name: 'Jane Cooper', avatar_url: '' },
-    },
   ];
 
   return (
@@ -103,11 +166,11 @@ function App() {
             {kpis.map((k) => (
               <KpiTile
                 key={k.label}
-                icon={k.icon}
+                icon={k.icon || '📈'}
                 label={k.label}
                 value={k.value}
-                accentVar={k.accentVar}
-                tintVar={k.tintVar}
+                accentVar={k.accentVar || 'var(--primary)'}
+                tintVar={k.tintVar || 'var(--tile-blue)'}
               />
             ))}
           </section>
@@ -115,13 +178,18 @@ function App() {
           {/* Row: Line Chart + Tasks */}
           <section className="row" aria-label="Charts">
             <LineChartCard title="Visitor statistics" categories={visitorStats.categories} series={visitorStats.series} />
-            <DoughnutCard title="Tasks" valueLabel={`${tasksDistribution.percent_done}%`} segments={tasksDistribution.segments} />
+            <DoughnutCard title="Tasks" valueLabel={`${tasksDistribution.percent_done || 0}%`} segments={tasksDistribution.segments || []} />
           </section>
 
           {/* Row: Activity + Campaign */}
           <section className="row" aria-label="Activity and Campaign">
             <ActivityFeed title="Activity" items={activities} />
-            <CampaignCard />
+            <CampaignCard
+              title={campaign?.name || "Marketing Campaign"}
+              description={campaign ? `Status: ${campaign.status}` : "Drive engagement with our latest campaign."}
+              ctaText={campaign?.cta || "Start Now"}
+              onCtaClick={() => {}}
+            />
           </section>
         </main>
       </div>
