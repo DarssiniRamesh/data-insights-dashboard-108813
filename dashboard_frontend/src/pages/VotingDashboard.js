@@ -258,7 +258,7 @@ export default function VotingDashboard() {
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 12, color: "var(--text-muted)" }}>
       <span>Updated {new Date().toLocaleTimeString()}</span>
       <span style={{ background: "rgba(16, 185, 129, 0.15)", color: "var(--accent-green)", padding: "2px 8px", borderRadius: 999 }}>
-        Active
+        Recent Window
       </span>
     </div>
   );
@@ -310,13 +310,14 @@ export default function VotingDashboard() {
           )}
         </section>
 
-        {/* Active Week Context + Votes per day chart */}
-        <section className="row" aria-label="Context and chart">
+        {/* Recent Context + Votes per day chart */}
+        <section className="row" aria-label="Recent context and chart">
           <div>
+            {/* Keep ActiveWeekCard for context if week concept exists; otherwise can be ignored by users */}
             <ActiveWeekCard context={activeWeekCtx || {}} />
             <div style={{ height: 16 }} aria-hidden="true" />
             <LineChartCard
-              title="Votes per day (Active Week)"
+              title="Votes per day (Recent)"
               categories={votesOverTime?.categories || []}
               series={votesOverTime?.series || [{ name: "Votes", data: [] }]}
               legends={[{ label: "Votes", colorVar: "var(--chart-new)" }]}
@@ -325,7 +326,7 @@ export default function VotingDashboard() {
           </div>
 
           <div>
-            <LeaderboardCard title="Top Apps (Active Week)" rows={leaderboardRows || []} />
+            <LeaderboardCard title="Top Apps (Recent)" rows={leaderboardRows || []} />
             <div style={{ height: 16 }} aria-hidden="true" />
             <SimpleTablePanel
               title="Recent Apps"
@@ -344,7 +345,7 @@ export default function VotingDashboard() {
 
         {/* Recent votes feed + Winners history + Campaign */}
         <section className="row" aria-label="Feeds and winners">
-          <RecentVotesFeed title="Recent Votes" items={recentVotes || []} />
+          <RecentVotesFeed title="Recent Votes (Latest)" items={recentVotes || []} />
           <div>
             <WinnersHistoryCard title="Winners History" items={winners || []} />
             <div style={{ height: 16 }} aria-hidden="true" />

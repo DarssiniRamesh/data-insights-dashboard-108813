@@ -23,6 +23,18 @@ function startOfTodayISO() {
 }
 
 /** PUBLIC_INTERFACE
+ * recentDaysISO
+ * Returns ISO string for midnight N days ago; default 7 days.
+ * Used for "recent" activity windows.
+ */
+function recentDaysISO(days = 7) {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString();
+}
+
+/** PUBLIC_INTERFACE
  * daysBackISO
  * Returns ISO string for midnight N days ago for range filtering (default 7).
  */
@@ -104,33 +116,31 @@ export function useVotingQueries() {
   }, []);
 
   // PUBLIC_INTERFACE
-  // getVotingKpis: builds KPI tiles using multiple safe, read-only selects.
+  // getVotingKpis: builds KPI tiles for "recent" activity (not tied to contest weeks).
+  // - Votes Today: created_at >= start of today
+  // - Total Votes (7d): votes created in the last 7 days
+  // - Top App (7d): most voted app within the last 7 days
+  // - New Users (7d): profiles created in last 7 days
+  // - Apps Submitted (7d): apps created in last 7 days
   const getVotingKpis = useCallback(async () => {
-    const activeWeek = await getActiveWeek();
-    const weekId = activeWeek?.id || null;
-
     const todayIso = startOfTodayISO();
-    const last7Iso = daysBackISO(7);
+    const last7Iso = recentDaysISO(7);
 
     const votesTodayP = supabase
       .from("votes")
       .select("id", { count: "exact", head: true })
       .gte("created_at", todayIso);
 
-    const totalVotesWeekP = weekId
-      ? supabase
-          .from("votes")
-          .select("id", { count: "exact", head: true })
-          .eq("contest_week_id", weekId)
-      : Promise.resolve({ count: 0 });
+    const totalVotes7dP = supabase
+      .from("votes")
+      .select("id", { count: "exact", head: true })
+      .gte("created_at", last7Iso);
 
-    // Optional-safe join; if RLS blocks nested apps, we still count app_id on client.
-    const topAppP = weekId
-      ? supabase
-          .from("votes")
-          .select("app_id, apps:app_id ( name )", { count: "exact" })
-          .eq("contest_week_id", weekId)
-      : Promise.resolve({ data: [] });
+    // For Top App (7d), pull recent votes and aggregate client-side, optional join to get app name.
+    const topApp7dP = supabase
+      .from("votes")
+      .select("app_id, apps:app_id ( name )")
+      .gte("created_at", last7Iso);
 
     const newUsers7dP = supabase
       .from("profiles")
@@ -142,23 +152,23 @@ export function useVotingQueries() {
       .select("id", { count: "exact", head: true })
       .gte("created_at", last7Iso);
 
-    const [votesTodayRes, totalVotesRes, topAppRes, newUsersRes, apps7dRes] = await Promise.all([
+    const [votesTodayRes, totalVotes7dRes, topApp7dRes, newUsersRes, apps7dRes] = await Promise.all([
       votesTodayP,
-      totalVotesWeekP,
-      topAppP,
+      totalVotes7dP,
+      topApp7dP,
       newUsers7dP,
       appsSubmitted7dP,
     ]);
 
     const votesToday = votesTodayRes?.count ?? 0;
-    const totalVotes = totalVotesRes?.count ?? 0;
+    const totalVotes7d = totalVotes7dRes?.count ?? 0;
 
-    // Compute top app using client-side aggregation to avoid complex SQL and tolerate RLS on joins.
+    // Compute top app in last 7d using client-side aggregation.
     let topAppName = "-";
     let topAppCount = 0;
-    if (Array.isArray(topAppRes?.data) && weekId) {
+    if (Array.isArray(topApp7dRes?.data)) {
       const counts = {};
-      (topAppRes.data || []).forEach((r) => {
+      (topApp7dRes.data || []).forEach((r) => {
         const appId = r?.app_id;
         if (!appId) return;
         counts[appId] = (counts[appId] || 0) + 1;
@@ -172,7 +182,7 @@ export function useVotingQueries() {
         }
       });
       if (maxId) {
-        const row = (topAppRes.data || []).find((r) => String(r.app_id) === String(maxId));
+        const row = (topApp7dRes.data || []).find((r) => String(r.app_id) === String(maxId));
         topAppName = row?.apps?.name || `App ${maxId}`;
       }
     }
@@ -181,12 +191,12 @@ export function useVotingQueries() {
     const appsSubmitted7d = apps7dRes?.count ?? 0;
 
     return {
-      activeWeek,
+      // activeWeek no longer central to KPIs but keep available for other consumers.
+      activeWeek: await getActiveWeek(),
       kpis: [
-        { key: "active_week", label: "Active Week", value: activeWeek?.label || "—", icon: "📅", accentVar: "var(--primary)", tintVar: "var(--tile-blue)" },
         { key: "votes_today", label: "Votes Today", value: votesToday, icon: "🗳️", accentVar: "var(--accent-pink)", tintVar: "var(--tile-pink)" },
-        { key: "total_votes", label: "Total Votes", value: totalVotes, icon: "✅", accentVar: "var(--accent-orange)", tintVar: "var(--tile-peach)" },
-        { key: "top_app", label: "Top App", value: topAppName, icon: "🌟", badge: topAppCount > 0 ? `${topAppCount}` : null, accentVar: "var(--accent-teal)", tintVar: "var(--tile-mint)" },
+        { key: "total_votes_7d", label: "Total Votes (7d)", value: totalVotes7d, icon: "✅", accentVar: "var(--accent-orange)", tintVar: "var(--tile-peach)" },
+        { key: "top_app_7d", label: "Top App (7d)", value: topAppName, icon: "🌟", badge: topAppCount > 0 ? `${topAppCount}` : null, accentVar: "var(--accent-teal)", tintVar: "var(--tile-mint)" },
         { key: "new_users_7d", label: "New Users (7d)", value: newUsers7d, icon: "👤", accentVar: "var(--primary)", tintVar: "var(--tile-blue)" },
         { key: "apps_7d", label: "Apps Submitted (7d)", value: appsSubmitted7d, icon: "📦", accentVar: "var(--accent-green)", tintVar: "var(--tile-mint)" },
       ],
@@ -194,21 +204,14 @@ export function useVotingQueries() {
   }, [getActiveWeek]);
 
   // PUBLIC_INTERFACE
-  // getVotesOverTime: daily counts for active week, default last 14 days.
+  // getVotesOverTime: daily counts for recent period (default last 14 days), not scoped to contest week.
   const getVotesOverTime = useCallback(async (days = 14) => {
-    const activeWeek = await getActiveWeek();
-    const weekId = activeWeek?.id;
     const since = daysRangeISO(days);
     const nowIso = new Date().toISOString();
-
-    if (!weekId) {
-      return { categories: [], series: [{ name: "Votes", data: [] }] };
-    }
 
     const { data, error } = await supabase
       .from("votes")
       .select("id, created_at")
-      .eq("contest_week_id", weekId)
       .gte("created_at", since)
       .lte("created_at", nowIso)
       .order("created_at", { ascending: true });
@@ -232,19 +235,17 @@ export function useVotingQueries() {
       categories: daysList,
       series: [{ name: "Votes", data: seriesData }],
     };
-  }, [getActiveWeek]);
+  }, []);
 
   // PUBLIC_INTERFACE
-  // getLeaderboard: top apps for active week with vote share. Safe when joins are blocked.
-  const getLeaderboard = useCallback(async (limit = 10) => {
-    const activeWeek = await getActiveWeek();
-    const weekId = activeWeek?.id;
-    if (!weekId) return [];
+  // getLeaderboard: top apps for recent period (default 7d) with vote share.
+  const getLeaderboard = useCallback(async (limit = 10, days = 7) => {
+    const since = recentDaysISO(days);
 
     const { data, error } = await supabase
       .from("votes")
       .select("app_id, apps:app_id ( name, owner_id, owners:owner_id ( username ) )")
-      .eq("contest_week_id", weekId);
+      .gte("created_at", since);
 
     if (error) {
       // eslint-disable-next-line no-console
@@ -279,14 +280,14 @@ export function useVotingQueries() {
       .slice(0, limit);
 
     return rows;
-  }, [getActiveWeek]);
+  }, []);
 
   // PUBLIC_INTERFACE
-  // getRecentVotes: recent votes with optional joins; tolerates missing join data.
+  // getRecentVotes: latest N recent votes (not scoped by week); tolerates missing join data.
   const getRecentVotes = useCallback(async (limit = 20) => {
     const { data, error } = await supabase
       .from("votes")
-      .select("id, created_at, apps:app_id(name), profiles:voter_id(username), contest_weeks:contest_week_id(label)")
+      .select("id, created_at, apps:app_id(name), profiles:voter_id(username)")
       .order("created_at", { ascending: false })
       .limit(limit);
 
@@ -301,7 +302,6 @@ export function useVotingQueries() {
       created_at: r?.created_at,
       voter_name: r?.profiles?.username || "Unknown",
       app_name: r?.apps?.name || "Unknown App",
-      week_label: r?.contest_weeks?.label || "",
     }));
   }, []);
 

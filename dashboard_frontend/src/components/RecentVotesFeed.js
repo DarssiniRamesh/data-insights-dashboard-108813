@@ -9,7 +9,7 @@ import "../styles/tokens.css";
  * - title?: string
  * - items: Array<{ id: string|number, created_at: string, voter_name: string, app_name: string, week_label?: string }>
  */
-export default function RecentVotesFeed({ title = "Recent Votes", items = [] }) {
+export default function RecentVotesFeed({ title = "Recent Votes (Latest)", items = [] }) {
   return (
     <Card title={title} className="feed">
       <div className="feed-list" role="list">

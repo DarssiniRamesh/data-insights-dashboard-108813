@@ -9,7 +9,7 @@ import "../styles/tokens.css";
  * - title?: string
  * - rows: Array<{ app_id: string|number, app_name: string, owner_name: string, votes: number, share: number }>
  */
-export default function LeaderboardCard({ title = "Top Apps (Active Week)", rows = [] }) {
+export default function LeaderboardCard({ title = "Top Apps (Recent)", rows = [] }) {
   return (
     <Card title={title} className="leaderboard">
       <div role="table" aria-label="Top apps leaderboard" style={{ width: "100%" }}>
