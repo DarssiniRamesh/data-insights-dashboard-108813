@@ -248,16 +248,12 @@ export function useVotingQueries() {
 
   // Recent votes feed
   const getRecentVotes = useCallback(async (limit = 20) => {
-    // Use valid PostgREST nested selects with left joins via FK column aliasing
-    // Expected schema:
-    // - votes: id, created_at, voter_id -> profiles.id, app_id -> apps.id, contest_week_id -> contest_weeks.id
-    // - profiles: username
-    // - apps: name
-    // - contest_weeks: label
+    // Use PostgREST-compliant nested selects. Each nested relation references the FK column alias.
+    // This yields: { id, created_at, profiles: { username }, apps: { name }, contest_weeks: { label } }
     const { data, error } = await supabase
       .from("votes")
       .select(
-        "id, created_at, voter_id, app_id, contest_week_id, profiles:voter_id ( username ), apps:app_id ( name ), contest_weeks:contest_week_id ( label )"
+        "id,created_at,profiles:voter_id(username),apps:app_id(name),contest_weeks:contest_week_id(label)"
       )
       .order("created_at", { ascending: false })
       .limit(limit);
@@ -279,9 +275,13 @@ export function useVotingQueries() {
 
   // Winners history
   const getWinnersHistory = useCallback(async (limit = 8) => {
+    // Join winners -> contest_weeks via contest_week_id and -> apps via app_id.
+    // Then join apps -> profiles (owners) via owner_id to get owner username.
     const { data, error } = await supabase
       .from("contest_winners")
-      .select("id, contest_week_id, app_id, total_votes, decided_at, weeks:contest_week_id ( label, start_date ), apps:app_id ( name, owner_id, owners:owner_id ( username ) )")
+      .select(
+        "id,decided_at,total_votes,contest_weeks:contest_week_id(label,start_date),apps:app_id(name,owner:owner_id(username))"
+      )
       .order("decided_at", { ascending: false })
       .limit(limit);
 
@@ -293,9 +293,9 @@ export function useVotingQueries() {
 
     return (data || []).map((r) => ({
       id: r.id,
-      week: r?.weeks?.label || "",
+      week: r?.contest_weeks?.label || "",
       app_name: r?.apps?.name || "",
-      owner_name: r?.apps?.owners?.username || "Unknown",
+      owner_name: r?.apps?.owner?.username || "Unknown",
       decided_at: r?.decided_at || null,
       total_votes: r?.total_votes ?? null,
     }));
