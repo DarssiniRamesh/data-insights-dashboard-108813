@@ -40,7 +40,7 @@ export default function SimpleTablePanel({
       role="group"
       aria-label={`${title} summary`}
     >
-      <div role="table" aria-label={`${title} recent rows`} style={{ width: "100%" }}>
+      <div role="table" aria-label={`${title} (Recent)`} style={{ width: "100%" }}>
         {/* Header */}
         <div role="rowgroup">
           <div

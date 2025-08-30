@@ -317,7 +317,7 @@ export default function VotingDashboard() {
             <ActiveWeekCard context={activeWeekCtx || {}} />
             <div style={{ height: 16 }} aria-hidden="true" />
             <LineChartCard
-              title="Votes per day (Last 14 days)"
+              title="Votes per day (Recent 14 days)"
               categories={votesOverTime?.categories || []}
               series={votesOverTime?.series || [{ name: "Votes", data: [] }]}
               legends={[{ label: "Votes", colorVar: "var(--chart-new)" }]}

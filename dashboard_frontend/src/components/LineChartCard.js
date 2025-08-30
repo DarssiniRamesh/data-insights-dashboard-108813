@@ -13,7 +13,7 @@ import "../styles/tokens.css";
  * - footer?: ReactNode
  * Note: This is a scaffold. Render a basic placeholder grid/legend. Hook a chart lib later.
  */
-export default function LineChartCard({ title = "Visitor statistics", categories = [], series = [], legends, footer }) {
+export default function LineChartCard({ title = "Visitor statistics (Recent)", categories = [], series = [], legends, footer }) {
   const defaultLegends = legends || [
     { label: "New", colorVar: "var(--chart-new)" },
     { label: "Returning", colorVar: "var(--chart-returning)" },

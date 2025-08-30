@@ -32,7 +32,7 @@ export default function WinnersHistoryCard({ title = "Winners History", items = 
               <div role="cell" style={{ textAlign: "right" }}>{it.total_votes ?? "-"}</div>
             </div>
           ))}
-          {items.length === 0 && <div style={{ color: "var(--text-muted)", fontSize: 14 }}>No winners yet.</div>}
+          {items.length === 0 && <div style={{ color: "var(--text-muted)", fontSize: 14 }}>No recent winners.</div>}
         </div>
       </div>
     </Card>

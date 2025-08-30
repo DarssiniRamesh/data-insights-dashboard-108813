@@ -273,7 +273,7 @@ function AppsPerWeekCard({ data = [], loading, error }) {
   );
 
   return (
-    <Card title="Apps per week" className="line-chart" role="group" aria-label="Apps per week chart">
+    <Card title="Apps per week (Recent)" className="line-chart" role="group" aria-label="Apps per week (Recent) chart">
       {loading ? (
         <div style={{ fontSize: 14, color: "var(--text-muted)" }}>Loading weekly data…</div>
       ) : error ? (
