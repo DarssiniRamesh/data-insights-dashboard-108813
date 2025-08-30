@@ -6,28 +6,38 @@ import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
 import KpiTile from './components/KpiTile';
 import LineChartCard from './components/LineChartCard';
-import DoughnutCard from './components/DoughnutCard';
-import ActivityFeed from './components/ActivityFeed';
-import CampaignCard from './components/CampaignCard';
+import LeaderboardCard from './components/LeaderboardCard';
+import RecentVotesFeed from './components/RecentVotesFeed';
+import WinnersHistoryCard from './components/WinnersHistoryCard';
+import ActiveWeekCard from './components/ActiveWeekCard';
 
-// Hooks (read-only)
-import { useQueries } from './hooks/useQueries';
-import { useRealtimeDashboard } from './hooks/useRealtimeDashboard';
+// Voting-specific hooks (read-only)
+import { useVotingQueries } from './hooks/useVotingQueries';
+import { useRealtimeVotingDashboard } from './hooks/useRealtimeVotingDashboard';
 
 // PUBLIC_INTERFACE
 function App() {
   const [theme, setTheme] = useState('light');
   const [collapsed, setCollapsed] = useState(false);
 
-  // Read-only dashboard state (snapshots updated via SELECT on signals)
-  const [kpis, setKpis] = useState([]);
-  const [visitorStats, setVisitorStats] = useState({ categories: [], series: [] });
-  const [tasksDistribution, setTasksDistribution] = useState({ percent_done: 0, segments: [] });
-  const [activities, setActivities] = useState([]);
-  const [campaign, setCampaign] = useState(null);
+  // State slices for voting dashboard
+  const [kpis, setKpis] = useState([]); // holds 6 KPI tiles per plan (incl. active week)
+  const [activeWeek, setActiveWeek] = useState(null);
+  const [votesOverTime, setVotesOverTime] = useState({ categories: [], series: [] });
+  const [leaderboard, setLeaderboard] = useState([]);
+  const [recentVotes, setRecentVotes] = useState([]);
+  const [winners, setWinners] = useState([]);
+  const [weekContext, setWeekContext] = useState(null);
 
-  // Fetchers
-  const { getKpis, getVisitorStats, getTasksDistribution, getRecentActivities, getActiveCampaign } = useQueries();
+  const {
+    getActiveWeek,
+    getVotingKpis,
+    getVotesOverTime,
+    getLeaderboard,
+    getRecentVotes,
+    getWinnersHistory,
+    getActiveWeekContext,
+  } = useVotingQueries();
 
   // Apply theme to root for potential theming
   useEffect(() => {
@@ -37,130 +47,117 @@ function App() {
   // PUBLIC_INTERFACE
   const toggleTheme = () => setTheme((t) => (t === 'light' ? 'dark' : 'light'));
 
-  // Initial SELECTs
-  useEffect(() => {
-    let isCancelled = false;
-
-    async function bootstrap() {
-      try {
-        const [kpiTiles, stats, tasks, feed, camp] = await Promise.all([
-          getKpis(),
-          getVisitorStats(12),
-          getTasksDistribution(),
-          getRecentActivities(10),
-          getActiveCampaign(),
-        ]);
-
-        if (isCancelled) return;
-        // Attach design-accurate tint and accent to KPI tiles based on label
-        const tilesStyled = (Array.isArray(kpiTiles) ? kpiTiles : []).map((t) => {
-          const label = (t.label || '').toLowerCase();
-          if (label.includes('sales')) {
-            return { ...t, icon: t.icon || '🛍️', accentVar: 'var(--accent-pink)', tintVar: 'var(--tile-pink)' };
-          }
-          if (label.includes('new customers')) {
-            return { ...t, icon: t.icon || '👥', accentVar: 'var(--accent-orange)', tintVar: 'var(--tile-peach)' };
-          }
-          if (label.includes('projects in progress')) {
-            return { ...t, icon: t.icon || '🔄', accentVar: 'var(--primary)', tintVar: 'var(--tile-blue)' };
-          }
-          if (label.includes('new applications')) {
-            return { ...t, icon: t.icon || '📥', accentVar: 'var(--accent-green)', tintVar: 'var(--tile-mint)' };
-          }
-          return { ...t, accentVar: t.accentVar || 'var(--primary)', tintVar: t.tintVar || 'var(--tile-blue)' };
-        });
-
-        setKpis(tilesStyled);
-        setVisitorStats(stats && typeof stats === 'object'
-          ? { categories: [...(stats.categories || [])], series: [...(stats.series || [])] }
-          : { categories: [], series: [] });
-        setTasksDistribution(tasks && typeof tasks === 'object'
-          ? { percent_done: tasks.percent_done || 0, segments: [...(tasks.segments || [])] }
-          : { percent_done: 0, segments: [] });
-        setActivities(Array.isArray(feed) ? feed.map(i => ({ ...i })) : []);
-        setCampaign(camp ? { ...camp } : null);
-      } catch (err) {
-        // eslint-disable-next-line no-console
-        console.error('[App] Bootstrap SELECTs failed:', err);
-      }
+  // Bootstrap initial data
+  const bootstrap = useCallback(async () => {
+    try {
+      const [{ activeWeek: aw, kpis: kTiles }, votTrend, lb, rv, wh, ctx] = await Promise.all([
+        getVotingKpis(),
+        getVotesOverTime(14),
+        getLeaderboard(10),
+        getRecentVotes(20),
+        getWinnersHistory(8),
+        getActiveWeekContext(),
+      ]);
+      setActiveWeek(aw || null);
+      setKpis(Array.isArray(kTiles) ? kTiles : []);
+      setVotesOverTime(votTrend || { categories: [], series: [] });
+      setLeaderboard(Array.isArray(lb) ? lb : []);
+      setRecentVotes(Array.isArray(rv) ? rv : []);
+      setWinners(Array.isArray(wh) ? wh : []);
+      setWeekContext(ctx || null);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('[App] Voting bootstrap failed:', err);
     }
+  }, [getVotingKpis, getVotesOverTime, getLeaderboard, getRecentVotes, getWinnersHistory, getActiveWeekContext]);
 
-    bootstrap();
-    return () => { isCancelled = true; };
-  }, [getKpis, getVisitorStats, getTasksDistribution, getRecentActivities, getActiveCampaign]);
+  useEffect(() => {
+    let canceled = false;
+    (async () => {
+      await bootstrap();
+      if (canceled) return;
+    })();
+    return () => { canceled = true; };
+  }, [bootstrap]);
 
-  // Realtime subscriptions -> trigger read-only refreshes or prepend new items
-  const refreshKpis = useCallback(async () => {
-    const tiles = await getKpis();
-    const tilesStyled = (Array.isArray(tiles) ? tiles : []).map((t) => {
-      const label = (t.label || '').toLowerCase();
-      if (label.includes('sales')) {
-        return { ...t, icon: t.icon || '🛍️', accentVar: 'var(--accent-pink)', tintVar: 'var(--tile-pink)' };
-      }
-      if (label.includes('new customers')) {
-        return { ...t, icon: t.icon || '👥', accentVar: 'var(--accent-orange)', tintVar: 'var(--tile-peach)' };
-      }
-      if (label.includes('projects in progress')) {
-        return { ...t, icon: t.icon || '🔄', accentVar: 'var(--primary)', tintVar: 'var(--tile-blue)' };
-      }
-      if (label.includes('new applications')) {
-        return { ...t, icon: t.icon || '📥', accentVar: 'var(--accent-green)', tintVar: 'var(--tile-mint)' };
-      }
-      return { ...t, accentVar: t.accentVar || 'var(--primary)', tintVar: t.tintVar || 'var(--tile-blue)' };
-    });
-    setKpis(tilesStyled);
-  }, [getKpis]);
+  // Refreshers for realtime events
+  const refreshVotesImpacts = useCallback(async () => {
+    // votes INSERT affects: Votes Today, Total Votes, Top App, Votes Over Time, Leaderboard, Recent Votes, Active Week Context
+    try {
+      const [aw, votTrend, lb, rv, ctx] = await Promise.all([
+        getActiveWeek(),
+        getVotesOverTime(14),
+        getLeaderboard(10),
+        getRecentVotes(20),
+        getActiveWeekContext(),
+      ]);
+      setActiveWeek(aw || null);
+      // only update KPIs related to votes via getVotingKpis to keep consistency
+      const { kpis: refreshedKpis } = await getVotingKpis();
+      setKpis(Array.isArray(refreshedKpis) ? refreshedKpis : []);
+      setVotesOverTime(votTrend || { categories: [], series: [] });
+      setLeaderboard(Array.isArray(lb) ? lb : []);
+      setRecentVotes(Array.isArray(rv) ? rv : []);
+      setWeekContext(ctx || null);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('[App] refreshVotesImpacts error:', err);
+    }
+  }, [getActiveWeek, getVotesOverTime, getLeaderboard, getRecentVotes, getActiveWeekContext, getVotingKpis]);
 
-  const refreshVisitorStats = useCallback(async () => {
-    const stats = await getVisitorStats(12);
-    setVisitorStats(stats && typeof stats === 'object'
-      ? { categories: [...(stats.categories || [])], series: [...(stats.series || [])] }
-      : { categories: [], series: [] });
-  }, [getVisitorStats]);
+  const refreshNewUsers = useCallback(async () => {
+    try {
+      const { kpis: refreshedKpis, activeWeek: aw } = await getVotingKpis();
+      setActiveWeek(aw || null);
+      setKpis(Array.isArray(refreshedKpis) ? refreshedKpis : []);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('[App] refreshNewUsers error:', err);
+    }
+  }, [getVotingKpis]);
 
-  const refreshTasks = useCallback(async () => {
-    const tasks = await getTasksDistribution();
-    setTasksDistribution(tasks && typeof tasks === 'object'
-      ? { percent_done: tasks.percent_done || 0, segments: [...(tasks.segments || [])] }
-      : { percent_done: 0, segments: [] });
-  }, [getTasksDistribution]);
+  const refreshAppsSubmitted = useCallback(async () => {
+    try {
+      const { kpis: refreshedKpis, activeWeek: aw } = await getVotingKpis();
+      setActiveWeek(aw || null);
+      setKpis(Array.isArray(refreshedKpis) ? refreshedKpis : []);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('[App] refreshAppsSubmitted error:', err);
+    }
+  }, [getVotingKpis]);
 
-  const prependActivity = useCallback(async () => {
-    // Re-fetch recent activities to keep ordering and joins consistent (read-only)
-    const feed = await getRecentActivities(10);
-    setActivities(Array.isArray(feed) ? feed.map(i => ({ ...i })) : []);
-  }, [getRecentActivities]);
+  const handleContestWeekUpdate = useCallback(async () => {
+    // If active week changed, re-bootstrap everything
+    await bootstrap();
+  }, [bootstrap]);
 
-  const handleProjectUpdate = useCallback(async () => { await refreshKpis(); }, [refreshKpis]);
+  const refreshWinners = useCallback(async () => {
+    try {
+      const wh = await getWinnersHistory(8);
+      setWinners(Array.isArray(wh) ? wh : []);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('[App] refreshWinners error:', err);
+    }
+  }, [getWinnersHistory]);
 
-  const refreshCampaign = useCallback(async () => {
-    const camp = await getActiveCampaign();
-    setCampaign(camp ? { ...camp } : null);
-  }, [getActiveCampaign]);
-
-  useRealtimeDashboard({
-    onSalesInsert: () => { refreshKpis(); refreshCampaign(); },
-    onCustomersInsert: () => { refreshKpis(); },
-    onApplicationsInsert: () => { refreshKpis(); },
-    onProjectsUpdate: () => { handleProjectUpdate(); },
-    onVisitsInsert: () => { refreshVisitorStats(); },
-    onTasksChange: () => { refreshTasks(); },
-    onActivitiesInsert: () => { prependActivity(); },
+  // Realtime wiring for voting dashboard
+  useRealtimeVotingDashboard({
+    onVotesInsert: () => { refreshVotesImpacts(); },
+    onProfilesInsert: () => { refreshNewUsers(); },
+    onAppsInsert: () => { refreshAppsSubmitted(); },
+    onContestWeekUpdate: () => { handleContestWeekUpdate(); },
+    onWinnersChange: () => { refreshWinners(); },
   });
 
   const sidebarItems = [
     { key: 'dashboard', icon: '🏠', label: 'Dashboard' },
-    { key: 'users', icon: '👥', label: 'Users' },
-    { key: 'mail', icon: '✉️', label: 'Mail' },
-    { key: 'messages', icon: '💬', label: 'Messages' },
-    { key: 'analytics', icon: '📈', label: 'Analytics' },
-    { key: 'sales', icon: '🛍️', label: 'Sales' },
-    { key: 'posts', icon: '📰', label: 'Posts' },
-    { key: 'tasks', icon: '✅', label: 'Tasks' },
-    { key: 'reports', icon: '📄', label: 'Reports' },
+    { key: 'apps', icon: '📦', label: 'Apps' },
+    { key: 'votes', icon: '🗳️', label: 'Votes' },
+    { key: 'profiles', icon: '👥', label: 'Profiles' },
+    { key: 'winners', icon: '🏆', label: 'Winners' },
     { key: 'settings', icon: '⚙️', label: 'Settings' },
-    { key: 'support', icon: '🆘', label: 'Support' },
-    { key: 'logout', icon: '🚪', label: 'Logout' },
   ];
 
   return (
@@ -183,7 +180,7 @@ function App() {
         />
 
         {/* Topbar */}
-        <Topbar brand="Dashboard" onToggleSidebar={() => setCollapsed((v) => !v)} />
+        <Topbar brand="Voting Dashboard" onToggleSidebar={() => setCollapsed((v) => !v)} />
 
         {/* Content */}
         <main className="content" role="main">
@@ -191,31 +188,32 @@ function App() {
           <section className="kpis" aria-label="Key Performance Indicators">
             {kpis.map((k) => (
               <KpiTile
-                key={k.label}
+                key={k.key || k.label}
                 icon={k.icon || '📈'}
                 label={k.label}
                 value={k.value}
                 accentVar={k.accentVar || 'var(--primary)'}
                 tintVar={k.tintVar || 'var(--tile-blue)'}
+                badge={k.badge ? <span className="chip" style={{ fontSize: 12 }}>{k.badge}</span> : null}
               />
             ))}
           </section>
 
-          {/* Row: Line Chart + Tasks */}
-          <section className="row" aria-label="Charts">
-            <LineChartCard title="Visitor statistics" categories={visitorStats.categories} series={visitorStats.series} />
-            <DoughnutCard title="Tasks" valueLabel={`${tasksDistribution.percent_done || 0}%`} segments={tasksDistribution.segments || []} />
+          {/* Row: Votes over time + Active Week context */}
+          <section className="row" aria-label="Trend and context">
+            <LineChartCard title="Votes per day (Active Week)" categories={votesOverTime.categories} series={votesOverTime.series} />
+            <ActiveWeekCard context={weekContext} />
           </section>
 
-          {/* Row: Activity + Campaign */}
-          <section className="row" aria-label="Activity and Campaign">
-            <ActivityFeed title="Activity" items={activities} />
-            <CampaignCard
-              title={campaign?.name || "Marketing Campaign"}
-              description={campaign ? `Status: ${campaign.status}` : "Drive engagement with our latest campaign."}
-              ctaText={campaign?.cta || "Start Now"}
-              onCtaClick={() => {}}
-            />
+          {/* Row: Leaderboard + Recent votes */}
+          <section className="row" aria-label="Leaderboard and Recent Votes">
+            <LeaderboardCard rows={leaderboard} />
+            <RecentVotesFeed items={recentVotes} />
+          </section>
+
+          {/* Winners History */}
+          <section aria-label="Winners History">
+            <WinnersHistoryCard items={winners} />
           </section>
         </main>
       </div>
