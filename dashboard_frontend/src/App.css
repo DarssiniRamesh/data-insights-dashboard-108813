@@ -1,0 +1,10 @@
+/* Deprecated CRA demo styles removed in favor of tokens.css design system.
+   Keeping only a small utility for a potential theme toggle placeholder.
+*/
+:root {
+  --_unused: 0;
+}
+
+.App {
+  min-height: 100vh;
+}
