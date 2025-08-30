@@ -248,13 +248,21 @@ export function useVotingQueries() {
 
   // Recent votes feed
   const getRecentVotes = useCallback(async (limit = 20) => {
-    // Use PostgREST-compliant nested selects. Each nested relation references the FK column alias.
-    // This yields: { id, created_at, profiles: { username }, apps: { name }, contest_weeks: { label } }
+    /**
+     * PostgREST-compliant nested select for recent votes:
+     * - Base: votes (SELECT *)
+     * - Nested:
+     *    - apps via app_id -> fetch name
+     *    - profiles (voter) via voter_id -> fetch username
+     *    - contest_weeks via contest_week_id -> fetch label
+     *
+     * Notes:
+     * - Use explicit FK-based relationship names: profiles:voter_id(...), apps:app_id(...), contest_weeks:contest_week_id(...)
+     * - Order by created_at DESC and apply limit
+     */
     const { data, error } = await supabase
       .from("votes")
-      .select(
-        "id,created_at,profiles:voter_id(username),apps:app_id(name),contest_weeks:contest_week_id(label)"
-      )
+      .select("id, created_at, apps:app_id(name), profiles:voter_id(username), contest_weeks:contest_week_id(label)")
       .order("created_at", { ascending: false })
       .limit(limit);
 
@@ -264,9 +272,10 @@ export function useVotingQueries() {
       return [];
     }
 
+    // Map to RecentVotesFeed model
     return (data || []).map((r) => ({
-      id: r.id,
-      created_at: r.created_at,
+      id: r?.id,
+      created_at: r?.created_at,
       voter_name: r?.profiles?.username || "Unknown",
       app_name: r?.apps?.name || "Unknown App",
       week_label: r?.contest_weeks?.label || "",
