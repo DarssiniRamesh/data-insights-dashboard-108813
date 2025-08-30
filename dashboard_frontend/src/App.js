@@ -10,10 +10,12 @@ import LeaderboardCard from './components/LeaderboardCard';
 import RecentVotesFeed from './components/RecentVotesFeed';
 import WinnersHistoryCard from './components/WinnersHistoryCard';
 import ActiveWeekCard from './components/ActiveWeekCard';
+import SimpleTablePanel from './components/SimpleTablePanel';
 
 // Voting-specific hooks (read-only)
 import { useVotingQueries } from './hooks/useVotingQueries';
 import { useRealtimeVotingDashboard } from './hooks/useRealtimeVotingDashboard';
+import { useSimpleDashboard } from './hooks/useSimpleDashboard';
 
 // PUBLIC_INTERFACE
 function App() {
@@ -39,6 +41,22 @@ function App() {
     getActiveWeekContext,
   } = useVotingQueries();
 
+  // Simple dashboard (single-table only) summaries
+  const {
+    getProfilesSummary,
+    getAppsSummary,
+    getVotesSummary,
+    getContestWeeksSummary,
+    getContestWinnersSummary,
+  } = useSimpleDashboard();
+
+  // simple panels state
+  const [profilesSummary, setProfilesSummary] = useState({ count: 0, rows: [] });
+  const [appsSummary, setAppsSummary] = useState({ count: 0, rows: [] });
+  const [votesSummary, setVotesSummary] = useState({ count: 0, rows: [] });
+  const [weeksSummary, setWeeksSummary] = useState({ count: 0, rows: [] });
+  const [winnersSummary, setWinnersSummary] = useState({ count: 0, rows: [] });
+
   // Apply theme to root for potential theming
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -50,13 +68,30 @@ function App() {
   // Bootstrap initial data
   const bootstrap = useCallback(async () => {
     try {
-      const [{ activeWeek: aw, kpis: kTiles }, votTrend, lb, rv, wh, ctx] = await Promise.all([
+      const [
+        { activeWeek: aw, kpis: kTiles },
+        votTrend,
+        lb,
+        rv,
+        wh,
+        ctx,
+        profSum,
+        appSum,
+        voteSum,
+        weekSum,
+        winSum,
+      ] = await Promise.all([
         getVotingKpis(),
         getVotesOverTime(14),
         getLeaderboard(10),
         getRecentVotes(20),
         getWinnersHistory(8),
         getActiveWeekContext(),
+        getProfilesSummary(10),
+        getAppsSummary(10),
+        getVotesSummary(10),
+        getContestWeeksSummary(10),
+        getContestWinnersSummary(10),
       ]);
       setActiveWeek(aw || null);
       setKpis(Array.isArray(kTiles) ? kTiles : []);
@@ -65,11 +100,29 @@ function App() {
       setRecentVotes(Array.isArray(rv) ? rv : []);
       setWinners(Array.isArray(wh) ? wh : []);
       setWeekContext(ctx || null);
+
+      setProfilesSummary(profSum || { count: 0, rows: [] });
+      setAppsSummary(appSum || { count: 0, rows: [] });
+      setVotesSummary(voteSum || { count: 0, rows: [] });
+      setWeeksSummary(weekSum || { count: 0, rows: [] });
+      setWinnersSummary(winSum || { count: 0, rows: [] });
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error('[App] Voting bootstrap failed:', err);
     }
-  }, [getVotingKpis, getVotesOverTime, getLeaderboard, getRecentVotes, getWinnersHistory, getActiveWeekContext]);
+  }, [
+    getVotingKpis,
+    getVotesOverTime,
+    getLeaderboard,
+    getRecentVotes,
+    getWinnersHistory,
+    getActiveWeekContext,
+    getProfilesSummary,
+    getAppsSummary,
+    getVotesSummary,
+    getContestWeeksSummary,
+    getContestWinnersSummary
+  ]);
 
   useEffect(() => {
     let canceled = false;
@@ -214,6 +267,85 @@ function App() {
           {/* Winners History */}
           <section aria-label="Winners History">
             <WinnersHistoryCard items={winners} />
+          </section>
+
+          {/* Simple Dashboard (Single-table only): counts + recent items */}
+          <section className="row" aria-label="Database Tables Overview">
+            <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 16 }}>
+              <SimpleTablePanel
+                title="Profiles"
+                count={profilesSummary.count}
+                rows={profilesSummary.rows}
+                columns={[
+                  { key: "id", label: "ID" },
+                  { key: "username", label: "Username" },
+                  { key: "created_at", label: "Created" },
+                ]}
+                emptyMessage="No data"
+                limitInfo="Showing latest 10"
+              />
+
+              <SimpleTablePanel
+                title="Apps"
+                count={appsSummary.count}
+                rows={appsSummary.rows}
+                columns={[
+                  { key: "id", label: "ID" },
+                  { key: "name", label: "Name" },
+                  { key: "owner_id", label: "Owner ID" },
+                  { key: "created_at", label: "Created" },
+                ]}
+                emptyMessage="No data"
+                limitInfo="Showing latest 10"
+              />
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 16 }}>
+              <SimpleTablePanel
+                title="Votes"
+                count={votesSummary.count}
+                rows={votesSummary.rows}
+                columns={[
+                  { key: "id", label: "ID" },
+                  { key: "app_id", label: "App ID" },
+                  { key: "voter_id", label: "Voter ID" },
+                  { key: "contest_week_id", label: "Week ID" },
+                  { key: "created_at", label: "Created" },
+                ]}
+                emptyMessage="No data"
+                limitInfo="Showing latest 10"
+              />
+
+              <SimpleTablePanel
+                title="Contest Weeks"
+                count={weeksSummary.count}
+                rows={weeksSummary.rows}
+                columns={[
+                  { key: "id", label: "ID" },
+                  { key: "label", label: "Label" },
+                  { key: "status", label: "Status" },
+                  { key: "start_date", label: "Start" },
+                  { key: "end_date", label: "End" },
+                ]}
+                emptyMessage="No data"
+                limitInfo="Showing latest 10"
+              />
+
+              <SimpleTablePanel
+                title="Contest Winners"
+                count={winnersSummary.count}
+                rows={winnersSummary.rows}
+                columns={[
+                  { key: "id", label: "ID" },
+                  { key: "contest_week_id", label: "Week ID" },
+                  { key: "app_id", label: "App ID" },
+                  { key: "total_votes", label: "Total Votes" },
+                  { key: "decided_at", label: "Decided At" },
+                ]}
+                emptyMessage="No data"
+                limitInfo="Showing latest 10"
+              />
+            </div>
           </section>
         </main>
       </div>
