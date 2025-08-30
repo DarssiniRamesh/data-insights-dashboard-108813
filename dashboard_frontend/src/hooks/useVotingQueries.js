@@ -248,45 +248,33 @@ export function useVotingQueries() {
 
   // Recent votes feed
   const getRecentVotes = useCallback(async (limit = 20) => {
+    // Use valid PostgREST nested selects with left joins via FK column aliasing
+    // Expected schema:
+    // - votes: id, created_at, voter_id -> profiles.id, app_id -> apps.id, contest_week_id -> contest_weeks.id
+    // - profiles: username
+    // - apps: name
+    // - contest_weeks: label
     const { data, error } = await supabase
       .from("votes")
-      .select("id, created_at, voter_id, app_id, contest_week_id, voter:Voter!inner ( username ), apps:app_id ( name ), weeks:contest_week_id ( label )", { foreignTable: "votes" }); // this complex join signature may vary
+      .select(
+        "id, created_at, voter_id, app_id, contest_week_id, profiles:voter_id ( username ), apps:app_id ( name ), contest_weeks:contest_week_id ( label )"
+      )
+      .order("created_at", { ascending: false })
+      .limit(limit);
 
-    // If the complex join fails due to RLS or schema constraints, fall back to simpler left joins using aliasing available in supabase-js v2:
     if (error) {
       // eslint-disable-next-line no-console
-      console.warn("[useVotingQueries] complex join failed, retrying with simpler joins:", error?.message || error);
-      const fb = await supabase
-        .from("votes")
-        .select("id, created_at, voter_id, app_id, contest_week_id, profiles:voter_id ( username ), apps:app_id ( name ), contest_weeks:contest_week_id ( label )")
-        .order("created_at", { ascending: false })
-        .limit(limit);
-      if (fb.error) {
-        // eslint-disable-next-line no-console
-        console.error("[useVotingQueries] getRecentVotes error:", fb.error);
-        return [];
-      }
-      return (fb.data || []).map((r) => ({
-        id: r.id,
-        created_at: r.created_at,
-        voter_name: r?.profiles?.username || "Unknown",
-        app_name: r?.apps?.name || "Unknown App",
-        week_label: r?.contest_weeks?.label || "",
-      }));
+      console.error("[useVotingQueries] getRecentVotes error:", error);
+      return [];
     }
 
-    // If success (rare with the above signature), still map and limit
-    const rows = (data || [])
-      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-      .slice(0, limit)
-      .map((r) => ({
-        id: r.id,
-        created_at: r.created_at,
-        voter_name: r?.voter?.username || "Unknown",
-        app_name: r?.apps?.name || "Unknown App",
-        week_label: r?.weeks?.label || "",
-      }));
-    return rows;
+    return (data || []).map((r) => ({
+      id: r.id,
+      created_at: r.created_at,
+      voter_name: r?.profiles?.username || "Unknown",
+      app_name: r?.apps?.name || "Unknown App",
+      week_label: r?.contest_weeks?.label || "",
+    }));
   }, []);
 
   // Winners history
