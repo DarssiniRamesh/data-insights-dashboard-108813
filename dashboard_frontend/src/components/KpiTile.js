@@ -22,7 +22,11 @@ export default function KpiTile({
   className = "",
   ...rest
 }) {
-  const iconStyle = { background: tintVar, color: accentVar };
+  const iconStyle = {
+    background: tintVar,
+    color: accentVar,
+    boxShadow: `inset 0 0 0 6px ${tintVar}`,
+  };
   return (
     <article className={`kpi-tile ${className}`} {...rest} aria-label={`KPI ${label}`}>
       <div className="kpi-top">

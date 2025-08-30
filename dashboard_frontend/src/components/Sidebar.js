@@ -13,7 +13,7 @@ import "../styles/tokens.css";
 export default function Sidebar({ items = [], activeKey, onItemClick, header }) {
   return (
     <aside className="sidebar" aria-label="Sidebar navigation">
-      {header ? <div className="sidebar-header">{header}</div> : null}
+      {header ? <div className="sidebar-header" style={{ padding: "4px 8px 12px 8px" }}>{header}</div> : null}
       <nav>
         <ul className="nav-list" role="list">
           {items.map((it) => {

@@ -137,6 +137,9 @@
   display: inline-flex;
   gap: var(--space-2);
 }
+.card-body {
+  display: block;
+}
 
 /* Buttons */
 .btn {
@@ -218,7 +221,7 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  min-height: 110px;
+  min-height: 120px;
 }
 .kpi-top {
   display: flex;
@@ -243,6 +246,18 @@
   font-size: var(--fz-24);
   font-weight: 700;
   color: var(--text-strong);
+}
+
+/* Chart placeholder area for LineChartCard */
+.line-chart .card-body > div {
+  background: #fff;
+}
+
+/* Tasks donut layout */
+.tasks-donut .legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
 }
 
 /* Legends and chips */

@@ -5,7 +5,6 @@ import './styles/tokens.css';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
 import KpiTile from './components/KpiTile';
-import Card from './components/Card';
 import LineChartCard from './components/LineChartCard';
 import DoughnutCard from './components/DoughnutCard';
 import ActivityFeed from './components/ActivityFeed';
@@ -30,15 +29,13 @@ function App() {
   // Fetchers
   const { getKpis, getVisitorStats, getTasksDistribution, getRecentActivities, getActiveCampaign } = useQueries();
 
-  // Effect to apply theme to document element
+  // Apply theme to root for potential theming
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
   // PUBLIC_INTERFACE
-  const toggleTheme = () => {
-    setTheme(prevTheme => prevTheme === 'light' ? 'dark' : 'light');
-  };
+  const toggleTheme = () => setTheme((t) => (t === 'light' ? 'dark' : 'light'));
 
   // Initial SELECTs
   useEffect(() => {
@@ -55,7 +52,25 @@ function App() {
         ]);
 
         if (isCancelled) return;
-        setKpis(Array.isArray(kpiTiles) ? kpiTiles.map(t => ({ ...t })) : []);
+        // Attach design-accurate tint and accent to KPI tiles based on label
+        const tilesStyled = (Array.isArray(kpiTiles) ? kpiTiles : []).map((t) => {
+          const label = (t.label || '').toLowerCase();
+          if (label.includes('sales')) {
+            return { ...t, icon: t.icon || '🛍️', accentVar: 'var(--accent-pink)', tintVar: 'var(--tile-pink)' };
+          }
+          if (label.includes('new customers')) {
+            return { ...t, icon: t.icon || '👥', accentVar: 'var(--accent-orange)', tintVar: 'var(--tile-peach)' };
+          }
+          if (label.includes('projects in progress')) {
+            return { ...t, icon: t.icon || '🔄', accentVar: 'var(--primary)', tintVar: 'var(--tile-blue)' };
+          }
+          if (label.includes('new applications')) {
+            return { ...t, icon: t.icon || '📥', accentVar: 'var(--accent-green)', tintVar: 'var(--tile-mint)' };
+          }
+          return { ...t, accentVar: t.accentVar || 'var(--primary)', tintVar: t.tintVar || 'var(--tile-blue)' };
+        });
+
+        setKpis(tilesStyled);
         setVisitorStats(stats && typeof stats === 'object'
           ? { categories: [...(stats.categories || [])], series: [...(stats.series || [])] }
           : { categories: [], series: [] });
@@ -77,7 +92,23 @@ function App() {
   // Realtime subscriptions -> trigger read-only refreshes or prepend new items
   const refreshKpis = useCallback(async () => {
     const tiles = await getKpis();
-    setKpis(Array.isArray(tiles) ? tiles.map(t => ({ ...t })) : []);
+    const tilesStyled = (Array.isArray(tiles) ? tiles : []).map((t) => {
+      const label = (t.label || '').toLowerCase();
+      if (label.includes('sales')) {
+        return { ...t, icon: t.icon || '🛍️', accentVar: 'var(--accent-pink)', tintVar: 'var(--tile-pink)' };
+      }
+      if (label.includes('new customers')) {
+        return { ...t, icon: t.icon || '👥', accentVar: 'var(--accent-orange)', tintVar: 'var(--tile-peach)' };
+      }
+      if (label.includes('projects in progress')) {
+        return { ...t, icon: t.icon || '🔄', accentVar: 'var(--primary)', tintVar: 'var(--tile-blue)' };
+      }
+      if (label.includes('new applications')) {
+        return { ...t, icon: t.icon || '📥', accentVar: 'var(--accent-green)', tintVar: 'var(--tile-mint)' };
+      }
+      return { ...t, accentVar: t.accentVar || 'var(--primary)', tintVar: t.tintVar || 'var(--tile-blue)' };
+    });
+    setKpis(tilesStyled);
   }, [getKpis]);
 
   const refreshVisitorStats = useCallback(async () => {
@@ -100,12 +131,8 @@ function App() {
     setActivities(Array.isArray(feed) ? feed.map(i => ({ ...i })) : []);
   }, [getRecentActivities]);
 
-  // Projects update may impact the KPI "Projects In Progress"
-  const handleProjectUpdate = useCallback(async () => {
-    await refreshKpis();
-  }, [refreshKpis]);
+  const handleProjectUpdate = useCallback(async () => { await refreshKpis(); }, [refreshKpis]);
 
-  // Optional: campaign might change due to external status updates; refresh on any KPI-related signal
   const refreshCampaign = useCallback(async () => {
     const camp = await getActiveCampaign();
     setCampaign(camp ? { ...camp } : null);
@@ -142,7 +169,6 @@ function App() {
         className="theme-toggle"
         onClick={toggleTheme}
         aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
-        style={{ position: 'fixed', zIndex: 5 }}
       >
         {theme === 'light' ? '🌙 Dark' : '☀️ Light'}
       </button>

@@ -44,8 +44,7 @@ export default function LineChartCard({ title = "Visitor statistics", categories
           display: "grid",
           placeItems: "center",
           color: "var(--text-muted)",
-          fontSize: 12,
-          background: "#fff",
+          fontSize: 12
         }}
       >
         <div>

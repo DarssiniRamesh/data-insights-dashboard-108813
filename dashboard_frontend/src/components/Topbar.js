@@ -28,7 +28,7 @@ export default function Topbar({ brand = "Admin page", onToggleSidebar, actionsR
         {actionsRight || (
           <>
             <button className="btn btn-ghost" type="button">Create new</button>
-            <button className="icon-btn" type="button" aria-label="Notifications">🔔</button>
+            <button className="icon-btn" type="button" aria-label="Notifications" title="Notifications">🔔</button>
             <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
               <span
                 style={{
@@ -37,7 +37,7 @@ export default function Topbar({ brand = "Admin page", onToggleSidebar, actionsR
                 }}
                 aria-hidden="true"
               />
-              <span style={{ fontSize: "14px" }}>John</span>
+              <span style={{ fontSize: "14px", color: "var(--text)" }}>John</span>
             </div>
           </>
         )}
