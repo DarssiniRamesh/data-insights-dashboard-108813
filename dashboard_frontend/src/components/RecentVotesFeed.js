@@ -15,7 +15,7 @@ export default function RecentVotesFeed({ title = "Recent Votes", items = [] }) 
       <div className="feed-list" role="list">
         {items.map((it) => (
           <div className="feed-item" key={it.id} role="listitem">
-            <div aria-hidden="true" style={{ width: 36, height: 36, borderRadius: "50%", background: "var(--surface-hover)" }} />
+            <div aria-hidden="true" className="recent-vote-avatar" style={{ width: 36, height: 36, borderRadius: "50%" }} />
             <div>
               <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text-strong)" }}>
                 {it.voter_name || "Unknown Voter"} voted

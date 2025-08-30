@@ -19,7 +19,7 @@ export default function ActiveWeekCard({ context }) {
           {ctx.date_range ? <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{ctx.date_range}</div> : null}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          <div className="card" style={{ padding: 12 }}>
+          <div className="card" style={{ padding: 12, background: "var(--surface-hover)" }}>
             <div style={{ fontSize: 12, color: "var(--text-muted)" }}>Participants</div>
             <div style={{ fontSize: 18, fontWeight: 700 }}>{ctx.participants ?? 0}</div>
           </div>

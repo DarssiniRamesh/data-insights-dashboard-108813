@@ -63,7 +63,7 @@ export default function ActivityFeed({ title = "Activity", items = [], onApprove
                 <button
                   type="button"
                   className="btn btn-secondary"
-                  style={{ height: 32, padding: "0 12px", color: "var(--danger)", borderColor: "var(--danger)" }}
+                  style={{ height: 32, padding: "0 12px", color: "var(--danger)", borderColor: "var(--danger)", background: "transparent" }}
                   onClick={() => onReject && onReject(it.id)}
                   aria-label={`Reject activity ${it.id}`}
                 >
