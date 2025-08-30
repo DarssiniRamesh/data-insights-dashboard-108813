@@ -1,29 +1,224 @@
 "use strict";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import "../styles/tokens.css";
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
 import Card from "../components/Card";
+import KpiTile from "../components/KpiTile";
+import LineChartCard from "../components/LineChartCard";
+import LeaderboardCard from "../components/LeaderboardCard";
+import RecentVotesFeed from "../components/RecentVotesFeed";
+import WinnersHistoryCard from "../components/WinnersHistoryCard";
+import ActiveWeekCard from "../components/ActiveWeekCard";
+import SimpleTablePanel from "../components/SimpleTablePanel";
+
+import { useVotingQueries } from "../hooks/useVotingQueries";
+import { useRealtimeVotingDashboard } from "../hooks/useRealtimeVotingDashboard";
 
 /**
  * PUBLIC_INTERFACE
  * VotingDashboard
- * Shell-only layout for the app-voter use case.
- * This scaffolds:
- * - Sidebar with nav items
- * - Topbar with brand and actions
- * - Main content area using a responsive grid:
- *   - KPI tiles row (4 tiles)
- *   - Row with left: line chart placeholder; right: doughnut placeholder
- *   - Row with left: recent feed placeholder; right: winners/announcement placeholder
+ * End-to-end app-voter dashboard wired to Supabase.
+ * Renders:
+ * - KPI tiles: Active Week, Votes Today, Total Votes, Top App, New Users (7d), Apps Submitted (7d)
+ * - Active Week context card (week label, date range, participants, unique voters, time remaining)
+ * - Votes per day (Active Week) line chart
+ * - Weekly Leaderboard (Top apps)
+ * - Recent Votes feed
+ * - Winners History
+ * - Recent Apps table (basic)
  *
- * No data fetching or Supabase wiring is implemented here. All widgets are placeholders.
+ * Defensive coding and empty state handling throughout.
  */
 export default function VotingDashboard() {
   const [activeNav, setActiveNav] = useState("dashboard");
 
-  // Sidebar items draft to match design sections
+  const {
+    getVotingKpis,
+    getVotesOverTime,
+    getLeaderboard,
+    getRecentVotes,
+    getWinnersHistory,
+    getActiveWeekContext,
+  } = useVotingQueries();
+
+  // State slices for dashboard blocks
+  const [kpis, setKpis] = useState([]);
+  const [activeWeekCtx, setActiveWeekCtx] = useState(null);
+  const [votesOverTime, setVotesOverTime] = useState({ categories: [], series: [{ name: "Votes", data: [] }] });
+  const [leaderboardRows, setLeaderboardRows] = useState([]);
+  const [recentVotes, setRecentVotes] = useState([]);
+  const [winners, setWinners] = useState([]);
+
+  // Additional simple recent apps panel
+  const [appsSummary, setAppsSummary] = useState({ count: 0, rows: [] });
+
+  // Loaders
+  const [loading, setLoading] = useState({
+    kpis: false,
+    ctx: false,
+    chart: false,
+    leaderboard: false,
+    feed: false,
+    winners: false,
+    apps: false,
+  });
+
+  const setLoadingKey = useCallback((key, val) => {
+    setLoading((prev) => ({ ...prev, [key]: val }));
+  }, []);
+
+  // Initial load functions
+  const loadKpis = useCallback(async () => {
+    setLoadingKey("kpis", true);
+    try {
+      const res = await getVotingKpis();
+      setKpis(res?.kpis || []);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("[VotingDashboard] loadKpis error:", e);
+      setKpis([]);
+    } finally {
+      setLoadingKey("kpis", false);
+    }
+  }, [getVotingKpis, setLoadingKey]);
+
+  const loadActiveWeekCtx = useCallback(async () => {
+    setLoadingKey("ctx", true);
+    try {
+      const res = await getActiveWeekContext();
+      setActiveWeekCtx(res);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("[VotingDashboard] loadActiveWeekCtx error:", e);
+      setActiveWeekCtx(null);
+    } finally {
+      setLoadingKey("ctx", false);
+    }
+  }, [getActiveWeekContext, setLoadingKey]);
+
+  const loadVotesOverTime = useCallback(async () => {
+    setLoadingKey("chart", true);
+    try {
+      const res = await getVotesOverTime(14);
+      setVotesOverTime(res || { categories: [], series: [{ name: "Votes", data: [] }] });
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("[VotingDashboard] loadVotesOverTime error:", e);
+      setVotesOverTime({ categories: [], series: [{ name: "Votes", data: [] }] });
+    } finally {
+      setLoadingKey("chart", false);
+    }
+  }, [getVotesOverTime, setLoadingKey]);
+
+  const loadLeaderboard = useCallback(async () => {
+    setLoadingKey("leaderboard", true);
+    try {
+      const res = await getLeaderboard(10);
+      setLeaderboardRows(res || []);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("[VotingDashboard] loadLeaderboard error:", e);
+      setLeaderboardRows([]);
+    } finally {
+      setLoadingKey("leaderboard", false);
+    }
+  }, [getLeaderboard, setLoadingKey]);
+
+  const loadRecentVotes = useCallback(async () => {
+    setLoadingKey("feed", true);
+    try {
+      const res = await getRecentVotes(20);
+      setRecentVotes(res || []);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("[VotingDashboard] loadRecentVotes error:", e);
+      setRecentVotes([]);
+    } finally {
+      setLoadingKey("feed", false);
+    }
+  }, [getRecentVotes, setLoadingKey]);
+
+  const loadWinners = useCallback(async () => {
+    setLoadingKey("winners", true);
+    try {
+      const res = await getWinnersHistory(8);
+      setWinners(res || []);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("[VotingDashboard] loadWinners error:", e);
+      setWinners([]);
+    } finally {
+      setLoadingKey("winners", false);
+    }
+  }, [getWinnersHistory, setLoadingKey]);
+
+  // Simple recent apps table: flat select via fetch to apps table directly
+  // We avoid joins and only show minimal columns for safety.
+  const fetchRecentApps = useCallback(async () => {
+    setLoadingKey("apps", true);
+    try {
+      // Lightweight fetch using Supabase client directly to avoid adding another hook file.
+      // Import supabase inline to keep cohesion in this page.
+      const { supabase } = await import("../lib/supabaseClient");
+      const countPromise = supabase.from("apps").select("id", { count: "exact", head: true });
+      const rowsPromise = supabase.from("apps").select("id,name,title,created_at").order("created_at", { ascending: false }).limit(8);
+      const [countRes, rowsRes] = await Promise.all([countPromise, rowsPromise]);
+      const count = countRes?.count ?? 0;
+      const rows = (rowsRes?.data || []).map((r) => ({
+        id: r?.id,
+        name: r?.name ?? r?.title ?? `App ${r?.id ?? ""}`,
+        created_at: r?.created_at ? new Date(r.created_at).toLocaleString() : "-",
+      }));
+      setAppsSummary({ count, rows });
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("[VotingDashboard] fetchRecentApps error:", e);
+      setAppsSummary({ count: 0, rows: [] });
+    } finally {
+      setLoadingKey("apps", false);
+    }
+  }, [setLoadingKey]);
+
+  // Bootstrap data
+  useEffect(() => {
+    loadKpis();
+    loadActiveWeekCtx();
+    loadVotesOverTime();
+    loadLeaderboard();
+    loadRecentVotes();
+    loadWinners();
+    fetchRecentApps();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Realtime subscriptions
+  useRealtimeVotingDashboard({
+    onVotesInsert: () => {
+      loadKpis();
+      loadVotesOverTime();
+      loadLeaderboard();
+      loadRecentVotes();
+      loadActiveWeekCtx();
+    },
+    onProfilesInsert: () => loadKpis(),
+    onAppsInsert: () => {
+      loadKpis();
+      fetchRecentApps();
+    },
+    onContestWeekUpdate: () => {
+      // Active week might have changed; refresh all dependent blocks.
+      loadKpis();
+      loadActiveWeekCtx();
+      loadVotesOverTime();
+      loadLeaderboard();
+      loadRecentVotes();
+    },
+    onWinnersChange: () => loadWinners(),
+  });
+
+  // Sidebar items in UI
   const navItems = useMemo(
     () => [
       { key: "dashboard", icon: "📊", label: "Dashboard" },
@@ -40,6 +235,28 @@ export default function VotingDashboard() {
       { key: "logout", icon: "🚪", label: "Logout" },
     ],
     []
+  );
+
+  // KPI tiles rendering — includes all 6 from getVotingKpis, but style suggests 4 in first row.
+  const kpiTiles = (kpis || []).map((tile, idx) => (
+    <KpiTile
+      key={`${tile?.key || "kpi"}-${idx}`}
+      icon={tile?.icon || "•"}
+      label={tile?.label || "-"}
+      value={tile?.value ?? "-"}
+      accentVar={tile?.accentVar || "var(--primary)"}
+      tintVar={tile?.tintVar || "var(--tile-blue)"}
+      badge={tile?.badge || null}
+    />
+  ));
+
+  const votesChartFooter = (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 12, color: "var(--text-muted)" }}>
+      <span>Updated {new Date().toLocaleTimeString()}</span>
+      <span style={{ background: "rgba(16, 185, 129, 0.15)", color: "var(--accent-green)", padding: "2px 8px", borderRadius: 999 }}>
+        Active
+      </span>
+    </div>
   );
 
   return (
@@ -68,119 +285,67 @@ export default function VotingDashboard() {
       <Topbar brand="App Voter Dashboard" />
 
       <main className="content" role="main" aria-label="Voting dashboard content">
-        {/* KPI Tiles Row (skeleton placeholders) */}
+        {/* KPI Tiles Row (may render 4-6 tiles based on data) */}
         <section className="kpis" aria-label="Key performance indicators">
-          <KpiSkeleton label="Active Week" />
-          <KpiSkeleton label="Votes Today" />
-          <KpiSkeleton label="Total Votes" />
-          <KpiSkeleton label="Top App" />
+          {loading.kpis && kpiTiles.length === 0 ? (
+            <>
+              <KpiSkeleton label="Active Week" />
+              <KpiSkeleton label="Votes Today" />
+              <KpiSkeleton label="Total Votes" />
+              <KpiSkeleton label="Top App" />
+            </>
+          ) : kpiTiles.length > 0 ? (
+            kpiTiles
+          ) : (
+            <>
+              <KpiSkeleton label="Active Week" />
+              <KpiSkeleton label="Votes Today" />
+              <KpiSkeleton label="Total Votes" />
+              <KpiSkeleton label="Top App" />
+            </>
+          )}
         </section>
 
-        {/* Row 2: Left chart placeholder + Right doughnut placeholder */}
-        <section className="row" aria-label="Charts section">
-          <Card
-            title="Votes per day (Active Week)"
-            className="line-chart"
-            actions={
-              <div className="legend" aria-hidden="true">
-                <span className="legend">
-                  <span className="legend-dot" style={{ background: "var(--chart-new)" }} />
-                  <span style={{ fontSize: 12 }}>Votes</span>
-                </span>
-              </div>
-            }
-          >
-            <div
-              style={{
-                height: 260,
-                border: "1px dashed var(--surface-border)",
-                borderRadius: 8,
-                display: "grid",
-                placeItems: "center",
-                color: "var(--text-muted)",
-                fontSize: 12,
-                background:
-                  "repeating-linear-gradient(0deg, transparent, transparent 23px, var(--surface-border) 24px), repeating-linear-gradient(90deg, transparent, transparent 59px, var(--surface-border) 60px)",
-              }}
-              aria-hidden="true"
-            >
-              Line chart placeholder — votes/day
-            </div>
-          </Card>
+        {/* Active Week Context + Votes per day chart */}
+        <section className="row" aria-label="Context and chart">
+          <div>
+            <ActiveWeekCard context={activeWeekCtx || {}} />
+            <div style={{ height: 16 }} aria-hidden="true" />
+            <LineChartCard
+              title="Votes per day (Active Week)"
+              categories={votesOverTime?.categories || []}
+              series={votesOverTime?.series || [{ name: "Votes", data: [] }]}
+              legends={[{ label: "Votes", colorVar: "var(--chart-new)" }]}
+              footer={votesChartFooter}
+            />
+          </div>
 
-          <Card title="Tasks" className="tasks-donut">
-            <div style={{ display: "grid", gridTemplateColumns: "1fr", justifyItems: "center", gap: 12 }}>
-              <div
-                style={{
-                  width: 180,
-                  height: 180,
-                  borderRadius: "50%",
-                  background:
-                    "conic-gradient(var(--success) 0% 60%, var(--ring-bg) 60% 100%)",
-                  display: "grid",
-                  placeItems: "center",
-                }}
-                aria-hidden="true"
-              >
-                <div
-                  style={{
-                    width: 130,
-                    height: 130,
-                    borderRadius: "50%",
-                    background: "#fff",
-                    display: "grid",
-                    placeItems: "center",
-                    boxShadow: "inset 0 0 0 1px var(--surface-border)",
-                  }}
-                >
-                  <div style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: 24, fontWeight: 700, lineHeight: 1 }}>60%</div>
-                    <div style={{ fontSize: 12, color: "var(--text-muted)" }}>complete</div>
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ display: "grid", gap: 8, width: "100%" }}>
-                <LegendItem colorVar="var(--success)" label="Done" value="—" />
-                <LegendItem colorVar="var(--warning)" label="In progress" value="—" />
-                <LegendItem colorVar="var(--danger)" label="Todo" value="—" />
-              </div>
-            </div>
-          </Card>
+          <div>
+            <LeaderboardCard title="Top Apps (Active Week)" rows={leaderboardRows || []} />
+            <div style={{ height: 16 }} aria-hidden="true" />
+            <SimpleTablePanel
+              title="Recent Apps"
+              count={appsSummary?.count}
+              rows={(appsSummary?.rows || []).slice(0, 8)}
+              columns={[
+                { key: "id", label: "ID" },
+                { key: "name", label: "Name" },
+                { key: "created_at", label: "Created" },
+              ]}
+              emptyMessage="No apps found."
+              limitInfo="Showing latest 8"
+            />
+          </div>
         </section>
 
-        {/* Row 3: Left feed placeholder + Right winners/announcement placeholder */}
-        <section className="row" aria-label="Feeds and announcement">
-          <Card title="Recent Votes" className="feed">
-            <div className="feed-list" role="list">
-              <FeedSkeleton />
-              <FeedSkeleton />
-              <FeedSkeleton />
-            </div>
-          </Card>
-
-          <Card className="campaign-card" title="Marketing Campaign" actions={null}>
-            <div style={{ color: "white" }}>
-              <p style={{ margin: 0, opacity: 0.9 }}>
-                Drive engagement with our latest voting campaign.
-              </p>
-              <div style={{ marginTop: 12 }}>
-                <button
-                  className="btn btn-ghost"
-                  style={{
-                    height: 34,
-                    padding: "0 12px",
-                    background: "rgba(255,255,255,0.15)",
-                    color: "#fff",
-                    borderColor: "rgba(255,255,255,0.25)",
-                  }}
-                  type="button"
-                >
-                  Start Now
-                </button>
-              </div>
-            </div>
-          </Card>
+        {/* Recent votes feed + Winners history + Campaign */}
+        <section className="row" aria-label="Feeds and winners">
+          <RecentVotesFeed title="Recent Votes" items={recentVotes || []} />
+          <div>
+            <WinnersHistoryCard title="Winners History" items={winners || []} />
+            <div style={{ height: 16 }} aria-hidden="true" />
+            <CampaignBanner />
+          </div>
         </section>
       </main>
     </div>
@@ -190,7 +355,7 @@ export default function VotingDashboard() {
 /**
  * PUBLIC_INTERFACE
  * KpiSkeleton
- * Minimal KPI tile UI for layout scaffolding only.
+ * Minimal KPI tile while loading.
  */
 function KpiSkeleton({ label = "KPI" }) {
   return (
@@ -221,51 +386,31 @@ function KpiSkeleton({ label = "KPI" }) {
 
 /**
  * PUBLIC_INTERFACE
- * LegendItem
- * Simple legend row used under the tasks placeholder donut.
+ * CampaignBanner
+ * Small marketing/announcement card matching design.
  */
-function LegendItem({ colorVar, label, value }) {
+function CampaignBanner() {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-      <span className="legend-dot" style={{ background: colorVar }} aria-hidden="true" />
-      <span style={{ fontSize: 13 }}>{label}</span>
-      <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-muted)" }}>{value}</span>
-    </div>
-  );
-}
-
-/**
- * PUBLIC_INTERFACE
- * FeedSkeleton
- * Placeholder item for the Recent Votes feed column.
- */
-function FeedSkeleton() {
-  return (
-    <div className="feed-item" role="listitem" aria-label="Loading item">
-      <div
-        aria-hidden="true"
-        style={{ width: 36, height: 36, borderRadius: "50%", background: "var(--surface-hover)" }}
-      />
-      <div>
-        <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text-strong)" }}>— voted</div>
-        <div style={{ marginTop: 4, color: "var(--text)" }}>App: —</div>
-        <div className="feed-meta" style={{ marginTop: 4 }}>
-          —
-        </div>
-        <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-          <button type="button" className="btn btn-secondary" style={{ height: 32, padding: "0 12px" }} disabled>
-            Approve
-          </button>
+    <Card className="campaign-card" title="Marketing Campaign" actions={null}>
+      <div style={{ color: "white" }}>
+        <p style={{ margin: 0, opacity: 0.9 }}>Drive engagement with our latest voting campaign.</p>
+        <div style={{ marginTop: 12 }}>
           <button
+            className="btn btn-ghost"
+            style={{
+              height: 34,
+              padding: "0 12px",
+              background: "rgba(255,255,255,0.15)",
+              color: "#fff",
+              borderColor: "rgba(255,255,255,0.25)",
+            }}
             type="button"
-            className="btn btn-secondary"
-            style={{ height: 32, padding: "0 12px", color: "var(--danger)", borderColor: "var(--danger)" }}
-            disabled
+            onClick={() => window?.alert?.("Campaign CTA clicked")}
           >
-            Reject
+            Start Now
           </button>
         </div>
       </div>
-    </div>
+    </Card>
   );
 }
