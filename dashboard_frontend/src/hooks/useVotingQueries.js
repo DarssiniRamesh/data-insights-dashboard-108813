@@ -284,13 +284,38 @@ export function useVotingQueries() {
 
   // Winners history
   const getWinnersHistory = useCallback(async (limit = 8) => {
-    // Join winners -> contest_weeks via contest_week_id and -> apps via app_id.
-    // Then join apps -> profiles (owners) via owner_id to get owner username.
+    /**
+     * PostgREST-compliant nested select for winners history:
+     * - Base: contest_winners
+     * - Nested:
+     *    - contest_weeks via contest_week_id -> select label,start_date
+     *    - apps via app_id -> select name and owner via owner_id
+     *    - profiles via apps.owner_id -> alias as owner to get username (optional if RLS blocks it)
+     *
+     * Notes:
+     * - Use explicit FK aliases: contest_weeks:contest_week_id(...), apps:app_id(...), owner:owner_id(...)
+     * - Order by contest_weeks.start_date DESC when available; also order by decided_at DESC as fallback.
+     */
     const { data, error } = await supabase
       .from("contest_winners")
-      .select(
-        "id,decided_at,total_votes,contest_weeks:contest_week_id(label,start_date),apps:app_id(name,owner:owner_id(username))"
-      )
+      .select(`
+        id,
+        decided_at,
+        total_votes,
+        contest_weeks:contest_week_id (
+          label,
+          start_date
+        ),
+        apps:app_id (
+          name,
+          owner:owner_id (
+            username
+          )
+        )
+      `)
+      // Order by related week start_date desc to reflect most recent weeks first
+      .order("start_date", { referencedTable: "contest_weeks", ascending: false })
+      // Secondary sort fallback by decided_at when start_date ties/missing
       .order("decided_at", { ascending: false })
       .limit(limit);
 
@@ -300,8 +325,9 @@ export function useVotingQueries() {
       return [];
     }
 
+    // Map to WinnersHistoryCard model
     return (data || []).map((r) => ({
-      id: r.id,
+      id: r?.id,
       week: r?.contest_weeks?.label || "",
       app_name: r?.apps?.name || "",
       owner_name: r?.apps?.owner?.username || "Unknown",
