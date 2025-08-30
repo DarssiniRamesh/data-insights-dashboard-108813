@@ -2,29 +2,49 @@
 
 /**
  * Read-only data hooks for the Voting Dashboard.
- * All queries are SELECTs against Supabase tables:
- * - profiles, contest_weeks, apps, votes, contest_winners
+ * All queries are SELECTs against Supabase tables (apps, profiles, votes, contest_weeks, contest_winners).
  * Realtime triggers are handled in useRealtimeVotingDashboard.
+ * Defensive coding:
+ * - All joins are optional-safe and tolerate RLS-denied nested fields by falling back to placeholder text.
+ * - Empty states return consistent shapes to avoid UI errors.
  */
 
 import { useCallback } from "react";
 import { supabase } from "../lib/supabaseClient";
 
-/** Date helpers */
+/** PUBLIC_INTERFACE
+ * startOfTodayISO
+ * Returns ISO string for today 00:00:00 used to filter "votes today".
+ */
 function startOfTodayISO() {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
   return d.toISOString();
 }
+
+/** PUBLIC_INTERFACE
+ * daysBackISO
+ * Returns ISO string for midnight N days ago for range filtering (default 7).
+ */
 function daysBackISO(days = 7) {
   const d = new Date();
   d.setDate(d.getDate() - days);
   d.setHours(0, 0, 0, 0);
   return d.toISOString();
 }
+
+/** PUBLIC_INTERFACE
+ * daysRangeISO
+ * Alias for daysBackISO, making intent explicit for chart ranges.
+ */
 function daysRangeISO(days = 14) {
   return daysBackISO(days);
 }
+
+/** PUBLIC_INTERFACE
+ * toDateKey
+ * Formats a date-like into YYYY-MM-DD (daily bucket key). Returns empty string on invalid date.
+ */
 function toDateKey(dateLike) {
   const d = new Date(dateLike);
   if (Number.isNaN(+d)) return "";
@@ -33,10 +53,16 @@ function toDateKey(dateLike) {
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
+
+/** PUBLIC_INTERFACE
+ * enumerateDaysInclusive
+ * Returns an array of day keys (YYYY-MM-DD) from fromISO to toISO inclusive.
+ */
 function enumerateDaysInclusive(fromISO, toISO) {
   const from = new Date(fromISO);
   const to = new Date(toISO);
   const out = [];
+  if (Number.isNaN(+from) || Number.isNaN(+to)) return out;
   const cur = new Date(from);
   while (cur <= to) {
     out.push(toDateKey(cur));
@@ -48,10 +74,19 @@ function enumerateDaysInclusive(fromISO, toISO) {
 /**
  * PUBLIC_INTERFACE
  * useVotingQueries
- * Exposes memoized async read-only selectors tailored to the voting schema.
+ * Exposes memoized async read-only selectors tailored to the voting schema:
+ * - getActiveWeek(): Fetch the current active contest week (or null).
+ * - getVotingKpis(): KPI tiles (active week label, votes today, total votes, top app, new users 7d, apps 7d).
+ * - getVotesOverTime(days?): Daily vote counts for active week, default last 14 days.
+ * - getLeaderboard(limit?): Top apps by votes for active week with share computation.
+ * - getRecentVotes(limit?): Recent votes with optional voter/app/week label joins.
+ * - getWinnersHistory(limit?): Past winners with nested app/owner and week label.
+ * - getActiveWeekContext(): Summary for ActiveWeekCard (label, date range, participants proxy, unique voters proxy, ends_in).
  */
+// PUBLIC_INTERFACE
 export function useVotingQueries() {
-  // Active Week
+  // PUBLIC_INTERFACE
+  // getActiveWeek: returns the latest active contest week or null.
   const getActiveWeek = useCallback(async () => {
     const { data, error } = await supabase
       .from("contest_weeks")
@@ -68,7 +103,8 @@ export function useVotingQueries() {
     return data || null;
   }, []);
 
-  // KPI bundle: Active Week label, Votes Today, Total Votes (active week), Top App (active week), New Users (7d), Apps Submitted (7d)
+  // PUBLIC_INTERFACE
+  // getVotingKpis: builds KPI tiles using multiple safe, read-only selects.
   const getVotingKpis = useCallback(async () => {
     const activeWeek = await getActiveWeek();
     const weekId = activeWeek?.id || null;
@@ -88,6 +124,7 @@ export function useVotingQueries() {
           .eq("contest_week_id", weekId)
       : Promise.resolve({ count: 0 });
 
+    // Optional-safe join; if RLS blocks nested apps, we still count app_id on client.
     const topAppP = weekId
       ? supabase
           .from("votes")
@@ -116,18 +153,16 @@ export function useVotingQueries() {
     const votesToday = votesTodayRes?.count ?? 0;
     const totalVotes = totalVotesRes?.count ?? 0;
 
-    // Compute top app from retrieved rows if available
+    // Compute top app using client-side aggregation to avoid complex SQL and tolerate RLS on joins.
     let topAppName = "-";
     let topAppCount = 0;
     if (Array.isArray(topAppRes?.data) && weekId) {
-      // Build a count map for app_id
       const counts = {};
       (topAppRes.data || []).forEach((r) => {
         const appId = r?.app_id;
         if (!appId) return;
         counts[appId] = (counts[appId] || 0) + 1;
       });
-      // Determine max
       let maxId = null;
       Object.entries(counts).forEach(([appId, cnt]) => {
         const n = Number(cnt) || 0;
@@ -137,7 +172,6 @@ export function useVotingQueries() {
         }
       });
       if (maxId) {
-        // Find a row for the app to get its joined name (if present)
         const row = (topAppRes.data || []).find((r) => String(r.app_id) === String(maxId));
         topAppName = row?.apps?.name || `App ${maxId}`;
       }
@@ -159,7 +193,8 @@ export function useVotingQueries() {
     };
   }, [getActiveWeek]);
 
-  // Votes per day (Active Week) - last N days
+  // PUBLIC_INTERFACE
+  // getVotesOverTime: daily counts for active week, default last 14 days.
   const getVotesOverTime = useCallback(async (days = 14) => {
     const activeWeek = await getActiveWeek();
     const weekId = activeWeek?.id;
@@ -199,7 +234,8 @@ export function useVotingQueries() {
     };
   }, [getActiveWeek]);
 
-  // Leaderboard (Active Week)
+  // PUBLIC_INTERFACE
+  // getLeaderboard: top apps for active week with vote share. Safe when joins are blocked.
   const getLeaderboard = useCallback(async (limit = 10) => {
     const activeWeek = await getActiveWeek();
     const weekId = activeWeek?.id;
@@ -216,7 +252,6 @@ export function useVotingQueries() {
       return [];
     }
 
-    // Aggregate counts by app_id
     const countMap = {};
     const metaMap = {};
     (data || []).forEach((r) => {
@@ -246,20 +281,9 @@ export function useVotingQueries() {
     return rows;
   }, [getActiveWeek]);
 
-  // Recent votes feed
+  // PUBLIC_INTERFACE
+  // getRecentVotes: recent votes with optional joins; tolerates missing join data.
   const getRecentVotes = useCallback(async (limit = 20) => {
-    /**
-     * PostgREST-compliant nested select for recent votes:
-     * - Base: votes (SELECT *)
-     * - Nested:
-     *    - apps via app_id -> fetch name
-     *    - profiles (voter) via voter_id -> fetch username
-     *    - contest_weeks via contest_week_id -> fetch label
-     *
-     * Notes:
-     * - Use explicit FK-based relationship names: profiles:voter_id(...), apps:app_id(...), contest_weeks:contest_week_id(...)
-     * - Order by created_at DESC and apply limit
-     */
     const { data, error } = await supabase
       .from("votes")
       .select("id, created_at, apps:app_id(name), profiles:voter_id(username), contest_weeks:contest_week_id(label)")
@@ -272,7 +296,6 @@ export function useVotingQueries() {
       return [];
     }
 
-    // Map to RecentVotesFeed model
     return (data || []).map((r) => ({
       id: r?.id,
       created_at: r?.created_at,
@@ -282,20 +305,9 @@ export function useVotingQueries() {
     }));
   }, []);
 
-  // Winners history
+  // PUBLIC_INTERFACE
+  // getWinnersHistory: returns normalized winners list, safe when owner join is blocked.
   const getWinnersHistory = useCallback(async (limit = 8) => {
-    /**
-     * PostgREST-compliant nested select for winners history:
-     * - Base: contest_winners
-     * - Nested:
-     *    - contest_weeks via contest_week_id -> select label,start_date
-     *    - apps via app_id -> select name and owner via owner_id
-     *    - profiles via apps.owner_id -> alias as owner to get username (optional if RLS blocks it)
-     *
-     * Notes:
-     * - Use explicit FK aliases: contest_weeks:contest_week_id(...), apps:app_id(...), owner:owner_id(...)
-     * - Order by contest_weeks.start_date DESC when available; also order by decided_at DESC as fallback.
-     */
     const { data, error } = await supabase
       .from("contest_winners")
       .select(`
@@ -313,9 +325,7 @@ export function useVotingQueries() {
           )
         )
       `)
-      // Order by related week start_date desc to reflect most recent weeks first
       .order("start_date", { referencedTable: "contest_weeks", ascending: false })
-      // Secondary sort fallback by decided_at when start_date ties/missing
       .order("decided_at", { ascending: false })
       .limit(limit);
 
@@ -325,7 +335,6 @@ export function useVotingQueries() {
       return [];
     }
 
-    // Map to WinnersHistoryCard model
     return (data || []).map((r) => ({
       id: r?.id,
       week: r?.contest_weeks?.label || "",
@@ -336,7 +345,8 @@ export function useVotingQueries() {
     }));
   }, []);
 
-  // Active week context card: week label/date, participants (distinct apps), unique voters
+  // PUBLIC_INTERFACE
+  // getActiveWeekContext: composes ActiveWeekCard content with safe fallbacks.
   const getActiveWeekContext = useCallback(async () => {
     const activeWeek = await getActiveWeek();
     if (!activeWeek?.id) {
@@ -364,13 +374,9 @@ export function useVotingQueries() {
         .neq("voter_id", null),
     ]);
 
-    // Note: Supabase head+count counts rows; counting distinct requires SQL or view.
-    // If RLS allows, use rpc or a distinct view. As a safe fallback, we can fetch and distinct client-side for small datasets.
-    // Here we rely on head count as a proxy if distinct is not feasible.
-
     const end = activeWeek?.end_date ? new Date(activeWeek.end_date) : null;
     let endsIn = "";
-    if (end) {
+    if (end && !Number.isNaN(+end)) {
       const ms = +end - +new Date();
       if (ms > 0) {
         const hrs = Math.floor(ms / (1000 * 60 * 60));
@@ -382,9 +388,10 @@ export function useVotingQueries() {
       }
     }
 
-    const dateRange = activeWeek?.start_date && activeWeek?.end_date
-      ? `${new Date(activeWeek.start_date).toLocaleDateString()} – ${new Date(activeWeek.end_date).toLocaleDateString()}`
-      : "";
+    const dateRange =
+      activeWeek?.start_date && activeWeek?.end_date
+        ? `${new Date(activeWeek.start_date).toLocaleDateString()} – ${new Date(activeWeek.end_date).toLocaleDateString()}`
+        : "";
 
     return {
       week_label: activeWeek?.label || "",

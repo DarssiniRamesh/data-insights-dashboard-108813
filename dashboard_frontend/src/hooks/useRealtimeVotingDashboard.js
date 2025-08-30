@@ -10,13 +10,23 @@
  * - contest_weeks: UPDATE
  * - contest_winners: INSERT/UPDATE
  *
- * Triggers provided callbacks to re-run read-only selectors in the UI.
+ * Parameters:
+ * - onVotesInsert?: () => void
+ * - onProfilesInsert?: () => void
+ * - onAppsInsert?: () => void
+ * - onContestWeekUpdate?: (payload) => void
+ * - onWinnersChange?: () => void
+ *
+ * Behavior:
+ * - Debounces callbacks to reduce render thrash under bursts of events.
+ * - Cleans up the channel on unmount with try/catch to tolerate client state races.
  */
 
 import { useEffect, useMemo } from "react";
 import { createDbChangesChannel, supabase } from "../lib/supabaseClient";
 import { debounce } from "../lib/adapters";
 
+// PUBLIC_INTERFACE
 export function useRealtimeVotingDashboard({
   onVotesInsert,
   onProfilesInsert,
