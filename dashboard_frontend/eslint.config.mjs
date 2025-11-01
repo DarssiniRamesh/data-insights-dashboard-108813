@@ -10,17 +10,27 @@ export default [
         sourceType: "module",
         ecmaFeatures: { jsx: true }
       },
+      // Enable common browser and test globals to avoid false positives.
+      // Alternatively, you could set env: { browser: true, jest: true } once ESLint supports env in flat config natively.
       globals: {
-        document: true,
         window: true,
+        document: true,
+        navigator: true,
+        console: true,
+        // Jest/testing-library
         test: true,
-        expect: true
+        it: true,
+        expect: true,
+        describe: true,
+        beforeAll: true,
+        afterAll: true,
+        beforeEach: true,
+        afterEach: true,
       }
     },
     rules: {
-
-     'no-unused-vars': ['error', { varsIgnorePattern: 'React|App' }]
-
+      // Prevent noise from unused React import with React 17+ JSX transform and common unused vars.
+      "no-unused-vars": ["error", { varsIgnorePattern: "React|App" }]
     }
   },
   pluginJs.configs.recommended,

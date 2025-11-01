@@ -1,8 +1,9 @@
-import { render, screen } from '@testing-library/react';
-import App from './App';
+import { render, screen } from "@testing-library/react";
+import App from "./App";
 
-test('renders learn react link', () => {
+test("renders dashboard topbar brand", () => {
   render(<App />);
-  const linkElement = screen.getByText(/learn react/i);
-  expect(linkElement).toBeInTheDocument();
+  // The VotingDashboard Topbar uses brand="App Voter Dashboard"
+  expect(screen.getByRole("banner")).toBeInTheDocument();
+  expect(screen.getByText(/App Voter Dashboard/i)).toBeInTheDocument();
 });
